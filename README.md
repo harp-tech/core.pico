@@ -1,4 +1,4 @@
-# Harp Core RP2040
+# Harp Pico Core
 
 An RP2040 Harp Core that implements the [Harp Protocol](https://harp-tech.org/protocol/BinaryProtocol-8bit.html) to serve as the basis of a custom Harp device.
 
