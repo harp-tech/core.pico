@@ -380,19 +380,20 @@ void HarpCore::read_timestamp_second(uint8_t reg_name)
 
 void HarpCore::write_timestamp_second(msg_t& msg)
 {
-    const uint32_t& seconds = *((uint32_t*)msg.payload);
+    uint32_t seconds;
+    // We cannot reinterpret-cast bc of alignment?
+    memcpy((void*)(&seconds), msg.payload, sizeof(seconds));
     // Replace the current number of elapsed seconds without altering the
     // number of elapsed microseconds.
-    uint64_t set_time_microseconds = uint64_t(seconds) * 1000000UL;
+    uint64_t set_time_microseconds = uint64_t(seconds) * 1'000'000ULL;
 #if defined(PICO_RP2040)
     uint64_t curr_microseconds;
     uint64_t curr_seconds = divmod_u64u64_rem(time_us_64(), 1'000'000ULL,
                                               &curr_microseconds);
 #else
-    uint64_t curr_microseconds = time_us_64() % 1000000ULL;
+    uint64_t curr_microseconds = time_us_64() % 1'000'000ULL;
 #endif
     uint64_t new_harp_time_us = set_time_microseconds + curr_microseconds;
-    // If synchronizer is attached, also update the synchronizer's time.
     set_harp_time_us_64(new_harp_time_us);
     // Send harp reply.
     // Note: harp timestamp registers will be updated before being dispatched.
@@ -418,11 +419,7 @@ void HarpCore::write_timestamp_microsecond(msg_t& msg)
     uint64_t curr_total_s  = time_us_64() / 1'000'000ULL;
 #endif
     uint64_t new_harp_time_us = curr_total_s + msg_us;
-    // If synchronizer is attached, also update the synchronizer's time.
     set_harp_time_us_64(new_harp_time_us);
-    if (self->sync_ != nullptr)
-        self->sync_->set_harp_time_us_64(new_harp_time_us);
-    self->offset_us_64_ = time_us_64() - new_harp_time_us;
     // Send harp reply.
     // Note: Harp timestamp registers will be updated before dispatching reply.
     send_harp_reply(WRITE, msg.header.address);
