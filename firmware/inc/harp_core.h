@@ -432,6 +432,26 @@ protected:
 
 private:
 /**
+ * \brief recompute the next heartbeat event time based on the current time.
+ * \note curr time (in microseconds) is specified in 32-bit (truncated)
+ *  representation of harp time.
+ */
+    static inline void update_next_heartbeat_from_curr_time_us(
+        uint32_t curr_harp_time_us32)
+    {
+        // Recompute next whole second (in [us]) based on synchronized time.
+        // Round *up* to the nearest whole second.
+#if defined(PICO_RP2040) // Invoke pico-specific fast-integer-division hardware.
+        uint32_t remainder;
+        uint32_t quotient = divmod_u32u32_rem(curr_harp_time_us32, 1'000'000UL,
+                                              &remainder);
+ #else
+        uint32_t remainder = curr_harp_time_us32 % 1'000'000UL;
+ #endif
+        self->next_heartbeat_time_us_ = curr_harp_time_us32 - remainder
+                                        + self->heartbeat_interval_us_;
+    }
+/**
  * \brief the total number of bytes read into the the msg receive buffer.
  *  This is implemented as a read-only reference to the #rx_buffer_index_.
  */
