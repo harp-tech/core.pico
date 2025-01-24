@@ -364,20 +364,20 @@ void HarpCore::write_timestamp_second(msg_t& msg)
     uint32_t seconds;
     // We cannot reinterpret-cast bc of alignment?
     memcpy((void*)(&seconds), msg.payload, sizeof(seconds));
-    // Replace the current number of elapsed seconds without altering the
-    // number of elapsed microseconds.
+    // Replace the current number of elapsed seconds (in harp time) without
+    // altering the number of elapsed microseconds.
     uint64_t set_time_microseconds = uint64_t(seconds) * 1'000'000ULL;
 #if defined(PICO_RP2040)
     uint64_t curr_microseconds;
-    uint64_t curr_seconds = divmod_u64u64_rem(time_us_64(), 1'000'000ULL,
+    uint64_t curr_seconds = divmod_u64u64_rem(harp_time_us_64(), 1'000'000ULL,
                                               &curr_microseconds);
 #else
-    uint64_t curr_microseconds = time_us_64() % 1'000'000ULL;
+    uint64_t curr_microseconds = harp_time_us_64() % 1'000'000ULL;
 #endif
     uint64_t new_harp_time_us = set_time_microseconds + curr_microseconds;
     set_harp_time_us_64(new_harp_time_us);
-    // Update time-dependent behavior. Take harp time from this function to
-    // enable external synchronizer to take priority.
+    // Update time-dependent behavior. Take harp time from this function such
+    // that external synchronizer takes priority.
     update_next_heartbeat_from_curr_time_us(uint32_t(harp_time_us_64()));
     // Send harp reply.
     // Note: harp timestamp registers will be updated before being dispatched.
@@ -395,17 +395,16 @@ void HarpCore::write_timestamp_microsecond(msg_t& msg)
 {
     const uint32_t msg_us = ((uint32_t)(*((uint16_t*)msg.payload))) << 5;
     // PICO implementation: replace the current number of elapsed microseconds
-    // with the value received from the message.
-
+    // in harp time with the value received from the message.
 #if defined(PICO_RP2040)
-    uint64_t curr_total_s  = div_u64u64(time_us_64(), 1'000'000ULL);
+    uint64_t curr_total_s  = div_u64u64(harp_time_us_64(), 1'000'000ULL);
 #else
-    uint64_t curr_total_s  = time_us_64() / 1'000'000ULL;
+    uint64_t curr_total_s  = harp_time_us_64() / 1'000'000ULL;
 #endif
     uint64_t new_harp_time_us = curr_total_s + msg_us;
     set_harp_time_us_64(new_harp_time_us);
-    // Update time-dependent behavior. Take harp time from this function to
-    // enable external synchronizer to take priority.
+    // Update time-dependent behavior. Take harp time from this function such
+    // that external synchronizer takes priority.
     update_next_heartbeat_from_curr_time_us(uint32_t(harp_time_us_64()));
     // Send harp reply.
     // Note: Harp timestamp registers will be updated before dispatching reply.
