@@ -18,7 +18,7 @@ curr_time_s = device.send(HarpMessage.ReadU32(
 print(f"Current seconds: {curr_time_s}")
 
 # Update Harp time on the device.
-set_time_seconds = 1000
+set_time_seconds = int(3e9)
 print(f"Setting Harp seconds to {set_time_seconds}")
 _ = device.send(HarpMessage.WriteU32(CoreRegs.TIMESTAMP_SECOND,
                                      set_time_seconds).frame)

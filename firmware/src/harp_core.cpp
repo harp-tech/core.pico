@@ -45,7 +45,7 @@ HarpCore::HarpCore(uint16_t who_am_i,
 #pragma warning("Harp Core Register UUID not autodetected for this board.")
 #endif
     // Initialize next heartbeat.
-    update_next_heartbeat_from_curr_time_us(uint32_t(harp_time_us_64()));
+    update_next_heartbeat_from_curr_harp_time_us(harp_time_us_64());
 }
 
 HarpCore::~HarpCore(){self = nullptr;}
@@ -159,7 +159,9 @@ void HarpCore::handle_buffered_core_message()
 void HarpCore::update_state(bool force, op_mode_t forced_next_state)
 {
     // Update internal logic.
-    uint32_t curr_harp_time_us32 = uint32_t(harp_time_us_64());
+    // Use 32-bit time representation since we are updating short intervals.
+    uint64_t harp_time_us = harp_time_us_64();
+    uint32_t time_us = harp_to_system_us_32(harp_time_us);
     bool tud_cdc_is_connected = tud_cdc_connected(); // Compute this once.
     bool is_synced = self->is_synced(); // Compute this once
     // Preserve flag value when synced; clear flag if we unsync.
@@ -174,12 +176,12 @@ void HarpCore::update_state(bool force, op_mode_t forced_next_state)
     if (!tud_cdc_is_connected && !self->disconnect_handled_)
     {
         self->disconnect_handled_ = true;
-        self->disconnect_start_time_us_ = curr_harp_time_us32;
+        self->disconnect_start_time_us_ = time_us;
     }
     // Extra logic to handle behavior that happens upon synchronizing.
     if (is_synced && !self->sync_handled_)
     {
-        update_next_heartbeat_from_curr_time_us(curr_harp_time_us32);
+        update_next_heartbeat_from_curr_harp_time_us(harp_time_us);
         self->sync_handled_ = true;
     }
     // Update state machine "next-state" logic.
@@ -195,7 +197,7 @@ void HarpCore::update_state(bool force, op_mode_t forced_next_state)
             case ACTIVE:
                 // Drop to STANDBY if we've lost the PC connection for too long.
                 if (!tud_cdc_is_connected && self->disconnect_handled_
-                    && (curr_harp_time_us32 - self->disconnect_start_time_us_)
+                    && (time_us - self->disconnect_start_time_us_)
                        >= NO_PC_INTERVAL_US)
                     next_state = STANDBY;
                 break;
@@ -219,7 +221,7 @@ void HarpCore::update_state(bool force, op_mode_t forced_next_state)
         self->heartbeat_interval_us_ = HEARTBEAT_STANDBY_INTERVAL_US;
     }
     // Handle OPERATION_CTRL behavior.
-    if (int32_t(curr_harp_time_us32 - self->next_heartbeat_time_us_) >= 0)
+    if (int32_t(time_us - self->next_heartbeat_time_us_) >= 0)
     {
         self->next_heartbeat_time_us_ += self->heartbeat_interval_us_;
         // Dispatch heartbeat msg and Blink LED.
@@ -378,7 +380,7 @@ void HarpCore::write_timestamp_second(msg_t& msg)
     set_harp_time_us_64(new_harp_time_us);
     // Update time-dependent behavior. Take harp time from this function such
     // that external synchronizer takes priority.
-    update_next_heartbeat_from_curr_time_us(uint32_t(harp_time_us_64()));
+    update_next_heartbeat_from_curr_harp_time_us(harp_time_us_64());
     // Send harp reply.
     // Note: harp timestamp registers will be updated before being dispatched.
     send_harp_reply(WRITE, msg.header.address);
@@ -405,7 +407,7 @@ void HarpCore::write_timestamp_microsecond(msg_t& msg)
     set_harp_time_us_64(new_harp_time_us);
     // Update time-dependent behavior. Take harp time from this function such
     // that external synchronizer takes priority.
-    update_next_heartbeat_from_curr_time_us(uint32_t(harp_time_us_64()));
+    update_next_heartbeat_from_curr_harp_time_us(harp_time_us_64());
     // Send harp reply.
     // Note: Harp timestamp registers will be updated before dispatching reply.
     send_harp_reply(WRITE, msg.header.address);

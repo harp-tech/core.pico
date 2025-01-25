@@ -433,23 +433,22 @@ protected:
 private:
 /**
  * \brief recompute the next heartbeat event time based on the current time.
- * \note curr time (in microseconds) is specified in 32-bit (truncated)
- *  representation of harp time.
  */
-    static inline void update_next_heartbeat_from_curr_time_us(
-        uint32_t curr_harp_time_us32)
+    static inline void update_next_heartbeat_from_curr_harp_time_us(
+        uint64_t curr_harp_time_us)
     {
         // Recompute next whole second (in [us]) based on synchronized time.
         // Round *up* to the nearest whole second.
 #if defined(PICO_RP2040) // Invoke pico-specific fast-integer-division hardware.
-        uint32_t remainder;
-        uint32_t quotient = divmod_u32u32_rem(curr_harp_time_us32, 1'000'000UL,
+        uint64_t remainder;
+        uint64_t quotient = divmod_u64u64_rem(curr_harp_time_us, 1'000'000ULL,
                                               &remainder);
  #else
-        uint32_t remainder = curr_harp_time_us32 % 1'000'000UL;
+        uint64_t remainder = curr_harp_time_us % 1'000'000ULL;
  #endif
-        self->next_heartbeat_time_us_ = curr_harp_time_us32 - remainder
-                                        + self->heartbeat_interval_us_;
+        self->next_heartbeat_time_us_ =
+            harp_to_system_us_32(curr_harp_time_us - remainder)
+            + self->heartbeat_interval_us_;
     }
 /**
  * \brief the total number of bytes read into the the msg receive buffer.
@@ -479,6 +478,8 @@ private:
 /**
  * \brief next time a heartbeat message is scheduled to issue.
  * \note only valid if Op Mode is in the ACTIVE state.
+ * \note this value is currently specified in 32-bit local system time
+ *  since it is a short interval.
  */
     uint32_t next_heartbeat_time_us_;
 
@@ -491,6 +492,8 @@ private:
 /**
  * \brief last time device detects no connection with the PC in microseconds.
  * \note only valid if Op Mode is not in STANDBY mode.
+ * \note this value is currently specified in 32-bit local system time
+ *  since it is a short interval.
  */
     uint32_t disconnect_start_time_us_;
 
