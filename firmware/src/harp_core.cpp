@@ -45,17 +45,7 @@ HarpCore::HarpCore(uint16_t who_am_i,
 #pragma warning("Harp Core Register UUID not autodetected for this board.")
 #endif
     // Initialize next heartbeat.
-    // Round *up* to the nearest whole second.
-#if defined(PICO_RP2040)
-    uint32_t curr_time_us = uint32_t(harp_time_us_64());
-    uint32_t remainder;
-    uint32_t quotient = divmod_u32u32_rem(curr_time_us, 1'000'000UL,
-                                          &remainder);
-#else
-    uint32_t remainder = curr_time_us % 1'000'000UL;
-#endif
-    self->next_heartbeat_time_us_ = curr_time_us - remainder
-                                    + heartbeat_interval_us_;
+    update_next_heartbeat_from_curr_harp_time_us(harp_time_us_64());
 }
 
 HarpCore::~HarpCore(){self = nullptr;}
@@ -169,7 +159,9 @@ void HarpCore::handle_buffered_core_message()
 void HarpCore::update_state(bool force, op_mode_t forced_next_state)
 {
     // Update internal logic.
-    uint32_t curr_time_us = uint32_t(harp_time_us_64());
+    // Use 32-bit time representation since we are updating short intervals.
+    uint64_t harp_time_us = harp_time_us_64();
+    uint32_t time_us = harp_to_system_us_32(harp_time_us);
     bool tud_cdc_is_connected = tud_cdc_connected(); // Compute this once.
     bool is_synced = self->is_synced(); // Compute this once
     // Preserve flag value when synced; clear flag if we unsync.
@@ -184,22 +176,12 @@ void HarpCore::update_state(bool force, op_mode_t forced_next_state)
     if (!tud_cdc_is_connected && !self->disconnect_handled_)
     {
         self->disconnect_handled_ = true;
-        self->disconnect_start_time_us_ = curr_time_us;
+        self->disconnect_start_time_us_ = time_us;
     }
     // Extra logic to handle behavior that happens upon synchronizing.
     if (is_synced && !self->sync_handled_)
     {
-        // Recompute next whole second (in [us]) based on synchronized time.
-        // Round *up* to the nearest whole second.
-#if defined(PICO_RP2040)
-        uint32_t remainder;
-        uint32_t quotient = divmod_u32u32_rem(curr_time_us, 1'000'000UL,
-                                              &remainder);
-#else
-        uint32_t remainder = curr_time_us % 1'000'000UL;
-#endif
-        self->next_heartbeat_time_us_ = curr_time_us - remainder
-                                        + self->heartbeat_interval_us_;
+        update_next_heartbeat_from_curr_harp_time_us(harp_time_us);
         self->sync_handled_ = true;
     }
     // Update state machine "next-state" logic.
@@ -215,7 +197,8 @@ void HarpCore::update_state(bool force, op_mode_t forced_next_state)
             case ACTIVE:
                 // Drop to STANDBY if we've lost the PC connection for too long.
                 if (!tud_cdc_is_connected && self->disconnect_handled_
-                    && (curr_time_us - self->disconnect_start_time_us_) >= NO_PC_INTERVAL_US)
+                    && (time_us - self->disconnect_start_time_us_)
+                       >= NO_PC_INTERVAL_US)
                     next_state = STANDBY;
                 break;
             case RESERVED:
@@ -238,7 +221,7 @@ void HarpCore::update_state(bool force, op_mode_t forced_next_state)
         self->heartbeat_interval_us_ = HEARTBEAT_STANDBY_INTERVAL_US;
     }
     // Handle OPERATION_CTRL behavior.
-    if (int32_t(curr_time_us - self->next_heartbeat_time_us_) >= 0)
+    if (int32_t(time_us - self->next_heartbeat_time_us_) >= 0)
     {
         self->next_heartbeat_time_us_ += self->heartbeat_interval_us_;
         // Dispatch heartbeat msg and Blink LED.
@@ -380,20 +363,24 @@ void HarpCore::read_timestamp_second(uint8_t reg_name)
 
 void HarpCore::write_timestamp_second(msg_t& msg)
 {
-    const uint32_t& seconds = *((uint32_t*)msg.payload);
-    // Replace the current number of elapsed seconds without altering the
-    // number of elapsed microseconds.
-    uint64_t set_time_microseconds = uint64_t(seconds) * 1000000UL;
+    uint32_t seconds;
+    // We cannot reinterpret-cast bc of alignment?
+    memcpy((void*)(&seconds), msg.payload, sizeof(seconds));
+    // Replace the current number of elapsed seconds (in harp time) without
+    // altering the number of elapsed microseconds.
+    uint64_t set_time_microseconds = uint64_t(seconds) * 1'000'000ULL;
 #if defined(PICO_RP2040)
     uint64_t curr_microseconds;
-    uint64_t curr_seconds = divmod_u64u64_rem(time_us_64(), 1'000'000ULL,
+    uint64_t curr_seconds = divmod_u64u64_rem(harp_time_us_64(), 1'000'000ULL,
                                               &curr_microseconds);
 #else
-    uint64_t curr_microseconds = time_us_64() % 1000000ULL;
+    uint64_t curr_microseconds = harp_time_us_64() % 1'000'000ULL;
 #endif
     uint64_t new_harp_time_us = set_time_microseconds + curr_microseconds;
-    // If synchronizer is attached, also update the synchronizer's time.
     set_harp_time_us_64(new_harp_time_us);
+    // Update time-dependent behavior. Take harp time from this function such
+    // that external synchronizer takes priority.
+    update_next_heartbeat_from_curr_harp_time_us(harp_time_us_64());
     // Send harp reply.
     // Note: harp timestamp registers will be updated before being dispatched.
     send_harp_reply(WRITE, msg.header.address);
@@ -410,19 +397,17 @@ void HarpCore::write_timestamp_microsecond(msg_t& msg)
 {
     const uint32_t msg_us = ((uint32_t)(*((uint16_t*)msg.payload))) << 5;
     // PICO implementation: replace the current number of elapsed microseconds
-    // with the value received from the message.
-
+    // in harp time with the value received from the message.
 #if defined(PICO_RP2040)
-    uint64_t curr_total_s  = div_u64u64(time_us_64(), 1'000'000ULL);
+    uint64_t curr_total_s  = div_u64u64(harp_time_us_64(), 1'000'000ULL);
 #else
-    uint64_t curr_total_s  = time_us_64() / 1'000'000ULL;
+    uint64_t curr_total_s  = harp_time_us_64() / 1'000'000ULL;
 #endif
     uint64_t new_harp_time_us = curr_total_s + msg_us;
-    // If synchronizer is attached, also update the synchronizer's time.
     set_harp_time_us_64(new_harp_time_us);
-    if (self->sync_ != nullptr)
-        self->sync_->set_harp_time_us_64(new_harp_time_us);
-    self->offset_us_64_ = time_us_64() - new_harp_time_us;
+    // Update time-dependent behavior. Take harp time from this function such
+    // that external synchronizer takes priority.
+    update_next_heartbeat_from_curr_harp_time_us(harp_time_us_64());
     // Send harp reply.
     // Note: Harp timestamp registers will be updated before dispatching reply.
     send_harp_reply(WRITE, msg.header.address);
