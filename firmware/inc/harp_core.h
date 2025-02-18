@@ -15,6 +15,11 @@
 #include <pico/unique_id.h>
 #include <pico/bootrom.h>
 
+#define HARP_VERSION_MAJOR (0)
+#define HARP_VERSION_MINOR (0)
+#define HARP_VERSION_PATCH (0)
+
+
 #define NO_PC_INTERVAL_US (3'000'000UL) // Threshold duration. If the connection
                                         // with the PC has been inactive for
                                         // this duration, op mode should switch
