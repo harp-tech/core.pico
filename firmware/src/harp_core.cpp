@@ -40,7 +40,7 @@ HarpCore::HarpCore(uint16_t who_am_i,
     // Populate Harp Core R_UUID with unique id from QSPI Flash.
     pico_unique_board_id_t unique_id;
     pico_get_unique_board_id(&unique_id);
-    memcpy((void*)(&regs.R_UUID[8]), (void*)&(unique_id.id), sizeof(unique_id.id));
+    memcpy((void*)(&regs.R_UUID[0]), (void*)&(unique_id.id), sizeof(unique_id.id));
 #else
 #pragma warning("Harp Core Register UUID not autodetected for this board.")
 #endif
