@@ -24,6 +24,8 @@ add_library(core_registers
 
 add_library(usb_desc
     src/usb_descriptors.c
+    #${PICO_SDK_PATH}/src/rp2_common/pico_stdio_usb/stdio_usb_descriptors.c
+    ${PICO_SDK_PATH}/src/rp2_common/pico_stdio_usb/reset_interface.c
 )
 
 add_library(harp_core
@@ -45,7 +47,7 @@ target_include_directories(harp_sync PUBLIC inc)
 target_include_directories(harp_core PUBLIC inc)
 
 
-target_link_libraries(usb_desc tinyusb_device pico_unique_id pico_stdlib)
+target_link_libraries(usb_desc tinyusb_device pico_unique_id pico_stdlib pico_stdio_usb)# pico_usb_reset_interface)
 target_link_libraries(harp_sync pico_stdlib)
 target_link_libraries(harp_core core_registers pico_stdlib tinyusb_device usb_desc)
 target_link_libraries(harp_c_app harp_core)

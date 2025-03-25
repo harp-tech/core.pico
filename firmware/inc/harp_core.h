@@ -22,9 +22,9 @@
 #define HEARTBEAT_ACTIVE_INTERVAL_US (1'000'000UL)
 #define HEARTBEAT_STANDBY_INTERVAL_US (3'000'000UL)
 
-// Create a typedef to simplify syntax for array of static function ptrs.
-typedef void (*read_reg_fn)(uint8_t reg);
-typedef void (*write_reg_fn)(msg_t& msg);
+// Create an alias to simplify syntax for array of static function ptrs.
+using read_reg_fn = void (*)(uint8_t reg);
+using write_reg_fn = void (*)(msg_t& msg);
 
 // Convenience struct for aggregating an array of fn ptrs to handle each
 // register.

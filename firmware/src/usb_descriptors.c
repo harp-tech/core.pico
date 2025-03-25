@@ -26,8 +26,7 @@
  * THE SOFTWARE.
  */
 
-// Added to disable resetting interface.
-#define PICO_STDIO_USB_ENABLE_RESET_VIA_VENDOR_INTERFACE 0
+#define PICO_STDIO_USB_ENABLE_RESET_VIA_VENDOR_INTERFACE (1)
 
 
 // FIXME: can we get these into a header file?
@@ -43,6 +42,7 @@
 #endif
 
 #include "tusb.h"
+#include "pico/usb_reset_interface.h"
 //#include "pico/stdio_usb/reset_interface.h"
 #include "pico/unique_id.h"
 
