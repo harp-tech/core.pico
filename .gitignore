@@ -7,6 +7,9 @@ docs/*/doc_out
 *.kicad_prl
 fp-info-cache
 
+# Local code settings
+.vscode/
+
 # Vim temporary files
 *.swp
 *.swo

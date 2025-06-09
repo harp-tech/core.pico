@@ -35,9 +35,9 @@ From the Pico SDK project root folder, install the Pico SDK's dependencies with:
 git submodule update --init --recursive
 ````
 ## Install the Harp Core as a submodule
-Next, in a sub-folder of your project, add **harp.core.rp2040** as a submodule with:
+Next, in a sub-folder of your project, add **core.pico** as a submodule with:
 ````
-git submodule add git@github.com:AllenNeuralDynamics/harp.core.rp2040.git
+git submodule add git@github.com:harp-tech/core.pico.git
 ````
 
 ## Setup your Project's CMakeLists.txt
@@ -47,15 +47,15 @@ include(${PICO_SDK_PATH}/pico_sdk_init.cmake)
 pico_sdk_init()
 ````
 
-Your must also point to the folder of the **Harp.Core.RP2040**'s CMakeLists.txt with
+You must also point to the folder of the **core.pico**'s CMakeLists.txt with
 ````cmake
-add_subdirectory(/path/to/cmakelist_dir build) # Path to harp.core.rp2040's CMakeLists.txt
+add_subdirectory(/path/to/cmakelist_dir build) # Path to core.pico's CMakeLists.txt
 ````
 (Note that you must change `path/to/cmakelist_dir` above to the actual path of this project's CMakeLists.txt.)
 
 At the linking step, you can link against the Harp core libraries with:
 ````cmake
-target_link_libraries(${PROJECT_NAME} harp_core harp_sync)
+target_link_libraries(${PROJECT_NAME} harp_c_app harp_sync pico_stdlib)
 ````
 
 ## Point to the Pico SDK
