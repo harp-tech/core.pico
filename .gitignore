@@ -1,6 +1,6 @@
 # files created for compiling the code
 build/
-docs/*/doc_out
+docs/doc_out
 
 # Kicad-generated
 *-backups/
