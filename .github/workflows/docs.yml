@@ -1,0 +1,92 @@
+name: Build and publish documentation
+on:
+  push:
+    # This prevents tag pushes from triggering this workflow
+    branches: ['**']
+  pull_request:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      publish-docs-website:
+        description: "Publish docs website to GitHub Pages?"
+        default: "false"
+jobs:
+  # =====================================================================================================================================================================
+  # Build documentation
+  # =====================================================================================================================================================================
+  build-documentation:
+    name: Build documentation
+    runs-on: ubuntu-latest
+    steps:
+      # ----------------------------------------------------------------------- Checkout
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      # ----------------------------------------------------------------------- Set up tools
+      - name: Restore tool cache
+        id: tool-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            doxygen-1.14.0.linux.bin.tar.gz
+            ubuntu_24.04_graphviz-13.0.0-cmake.deb
+          key: doxygen-1.14.0_graphviz-13.0.0
+
+      # We don't use apt to acquire Doxygen because the version provided by Ubuntu is far too old
+      # For Graphviz the available version is suitable, but it's actually significantly faster to just download it directly
+      - name: Download tools
+        if: steps.tool-cache.outputs.cache-hit != 'true'
+        run: |
+          wget --no-verbose https://github.com/doxygen/doxygen/releases/download/Release_1_14_0/doxygen-1.14.0.linux.bin.tar.gz
+          echo "e5d6ae24d0bf3f0cdc4d8f146726b89ca323922f19441af99b1872d503665ad6 doxygen-1.14.0.linux.bin.tar.gz" | sha256sum --check --strict
+
+          wget --no-verbose https://gitlab.com/api/v4/projects/4207231/packages/generic/graphviz-releases/13.0.0/ubuntu_24.04_graphviz-13.0.0-cmake.deb
+          echo " 30b5050706d2ce51a1cdd1be43b31d34d30f73cde3c1e904a37916d30314eb91 ubuntu_24.04_graphviz-13.0.0-cmake.deb" | sha256sum --check --strict
+
+      - name: Install Doxygen
+        run: |
+          tar -xf doxygen-1.14.0.linux.bin.tar.gz
+          echo "$(pwd)/doxygen-1.14.0/bin" >> "$GITHUB_PATH"
+
+      - name: Install Graphviz
+        run: sudo dpkg --install ubuntu_24.04_graphviz-13.0.0-cmake.deb
+
+      # ----------------------------------------------------------------------- Build documentation
+      - name: Build documentation
+        id: build-documentation
+        working-directory: docs
+        run: doxygen
+
+      # ----------------------------------------------------------------------- Collect artifacts
+      - name: Collect documentation website artifact
+        uses: actions/upload-pages-artifact@v3
+        if: steps.build-documentation.outcome == 'success' && always()
+        with:
+          path: docs/doc_out/html/
+
+  # =====================================================================================================================================================================
+  # Publish documentation
+  # =====================================================================================================================================================================
+  publish-documentation:
+    name: Publish documentation
+    runs-on: ubuntu-latest
+    needs: [build-documentation]
+    permissions:
+      # Both required by actions/deploy-pages
+      pages: write
+      id-token: write
+    environment:
+      name: documentation-website
+      url: ${{steps.publish.outputs.page_url}}
+    if: |
+      github.event_name == 'release'
+      || (github.event_name == 'workflow_dispatch' && github.event.inputs.publish-docs-website == 'true')
+      || (github.event_name == 'push' && vars.CONTINUOUS_DOCUMENTATION)
+    steps:
+      # ----------------------------------------------------------------------- Publish to GitHub Pages
+      - name: Publish to GitHub Pages
+        id: publish
+        uses: actions/deploy-pages@v4
