@@ -31,25 +31,25 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            doxygen-1.14.0.linux.bin.tar.gz
+            doxygen-1.12.0.linux.bin.tar.gz
             ubuntu_24.04_graphviz-13.0.0-cmake.deb
-          key: doxygen-1.14.0_graphviz-13.0.0
+          key: doxygen-1.12.0_graphviz-13.0.0
 
       # We don't use apt to acquire Doxygen because the version provided by Ubuntu is far too old
       # For Graphviz the available version is suitable, but it's actually significantly faster to just download it directly
       - name: Download tools
         if: steps.tool-cache.outputs.cache-hit != 'true'
         run: |
-          wget --no-verbose https://github.com/doxygen/doxygen/releases/download/Release_1_14_0/doxygen-1.14.0.linux.bin.tar.gz
-          echo "e5d6ae24d0bf3f0cdc4d8f146726b89ca323922f19441af99b1872d503665ad6 doxygen-1.14.0.linux.bin.tar.gz" | sha256sum --check --strict
+          wget --no-verbose https://github.com/doxygen/doxygen/releases/download/Release_1_12_0/doxygen-1.12.0.linux.bin.tar.gz
+          echo "3c42c3f3fb206732b503862d9c9c11978920a8214f223a3950bbf2520be5f647 doxygen-1.12.0.linux.bin.tar.gz" | sha256sum --check --strict
 
           wget --no-verbose https://gitlab.com/api/v4/projects/4207231/packages/generic/graphviz-releases/13.0.0/ubuntu_24.04_graphviz-13.0.0-cmake.deb
           echo " 30b5050706d2ce51a1cdd1be43b31d34d30f73cde3c1e904a37916d30314eb91 ubuntu_24.04_graphviz-13.0.0-cmake.deb" | sha256sum --check --strict
 
       - name: Install Doxygen
         run: |
-          tar -xf doxygen-1.14.0.linux.bin.tar.gz
-          echo "$(pwd)/doxygen-1.14.0/bin" >> "$GITHUB_PATH"
+          tar -xf doxygen-1.12.0.linux.bin.tar.gz
+          echo "$(pwd)/doxygen-1.12.0/bin" >> "$GITHUB_PATH"
 
       - name: Install Graphviz
         run: sudo dpkg --install ubuntu_24.04_graphviz-13.0.0-cmake.deb
