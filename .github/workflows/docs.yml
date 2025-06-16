@@ -35,7 +35,6 @@ jobs:
           key: doxygen-1.12.0
 
       # We don't use apt to acquire Doxygen because the version provided by Ubuntu is far too old
-      # For Graphviz the available version is suitable, but it's actually significantly faster to just download it directly
       - name: Download tools
         if: steps.tool-cache.outputs.cache-hit != 'true'
         run: |
