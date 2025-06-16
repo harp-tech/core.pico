@@ -87,6 +87,7 @@ Press-and-hold the Pico's BOOTSEL button and power it up (i.e: plug it into usb)
 At this point you do one of the following:
 * drag-and-drop the created **\*.uf2** file into the mass storage device that appears on your pc.
 * flash with [picotool](https://github.com/raspberrypi/picotool)
+
 ---
 
 # Using Bonsai
@@ -99,6 +100,7 @@ For more information on reading data or writing commands to your custom new harp
 * Several utility functions to convert betweeen local and system time exist
   * if events from *Harp Time* need to be scheduled in *system time*.
   * if events in system time need to be timestamped in *Harp time*.
+
 ---
 # Developer Notes
 
