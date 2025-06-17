@@ -5,11 +5,10 @@ PROJECT_ICON           = favicon.ico
 OUTPUT_DIRECTORY       = doc_out
 STRIP_FROM_PATH        = ../
 EXTRACT_ALL            = YES
-EXTRACT_PRIVATE        = YES
-EXTRACT_PRIV_VIRTUAL   = YES
 EXTRACT_STATIC         = YES
 CASE_SENSE_NAMES       = YES
-INPUT                  = ../README.md ../firmware
+INPUT                  = ../README.md \
+                         ../firmware
 RECURSIVE              = YES
 USE_MDFILE_AS_MAINPAGE = README.md
 HTML_HEADER            = template/custom_header.html
