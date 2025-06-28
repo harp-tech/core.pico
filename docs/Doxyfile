@@ -1,0 +1,25 @@
+# Difference with default Doxyfile 1.12.0 (c73f5d30f9e8b1df5ba15a1d064ff2067cbb8267)
+PROJECT_NAME           = "Pico Core"
+PROJECT_LOGO           = icon.png
+PROJECT_ICON           = favicon.ico
+OUTPUT_DIRECTORY       = doc_out
+STRIP_FROM_PATH        = ../
+EXTRACT_ALL            = YES
+EXTRACT_PRIVATE        = YES
+EXTRACT_PRIV_VIRTUAL   = YES
+EXTRACT_STATIC         = YES
+CASE_SENSE_NAMES       = YES
+INPUT                  = ../README.md ../firmware
+RECURSIVE              = YES
+USE_MDFILE_AS_MAINPAGE = README.md
+HTML_HEADER            = template/custom_header.html
+HTML_FOOTER            = template/custom_footer.html
+HTML_EXTRA_STYLESHEET  = doxygen-awesome-css/doxygen-awesome.css
+HTML_EXTRA_FILES       = doxygen-awesome-css/doxygen-awesome-darkmode-toggle.js \
+                         doxygen-awesome-css/doxygen-awesome-fragment-copy-button.js
+HTML_COLORSTYLE        = LIGHT
+GENERATE_TREEVIEW      = YES
+USE_MATHJAX            = YES
+GENERATE_LATEX         = NO
+HAVE_DOT               = YES
+DOT_IMAGE_FORMAT       = svg

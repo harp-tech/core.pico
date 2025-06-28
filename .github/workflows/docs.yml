@@ -1,0 +1,89 @@
+name: Build and publish documentation
+on:
+  push:
+    # This prevents tag pushes from triggering this workflow
+    branches: ['**']
+  pull_request:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      publish-docs-website:
+        description: "Publish docs website to GitHub Pages?"
+        default: "false"
+jobs:
+  # =====================================================================================================================================================================
+  # Build documentation
+  # =====================================================================================================================================================================
+  build-documentation:
+    name: Build documentation
+    runs-on: ubuntu-latest
+    steps:
+      # ----------------------------------------------------------------------- Checkout
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      # ----------------------------------------------------------------------- Set up tools
+      - name: Restore tool cache
+        id: tool-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            doxygen-1.12.0.linux.bin.tar.gz
+          key: doxygen-1.12.0
+
+      # We don't use apt to acquire Doxygen because the version provided by Ubuntu is far too old
+      - name: Download tools
+        if: steps.tool-cache.outputs.cache-hit != 'true'
+        run: |
+          wget --no-verbose https://github.com/doxygen/doxygen/releases/download/Release_1_12_0/doxygen-1.12.0.linux.bin.tar.gz
+          echo "3c42c3f3fb206732b503862d9c9c11978920a8214f223a3950bbf2520be5f647 doxygen-1.12.0.linux.bin.tar.gz" | sha256sum --check --strict
+
+      - name: Install Doxygen
+        run: |
+          tar -xf doxygen-1.12.0.linux.bin.tar.gz
+          echo "$(pwd)/doxygen-1.12.0/bin" >> "$GITHUB_PATH"
+
+      - name: Install Graphviz
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y graphviz
+
+      # ----------------------------------------------------------------------- Build documentation
+      - name: Build documentation
+        id: build-documentation
+        working-directory: docs
+        run: doxygen
+
+      # ----------------------------------------------------------------------- Collect artifacts
+      - name: Collect documentation website artifact
+        uses: actions/upload-pages-artifact@v3
+        if: steps.build-documentation.outcome == 'success' && always()
+        with:
+          path: docs/doc_out/html/
+
+  # =====================================================================================================================================================================
+  # Publish documentation
+  # =====================================================================================================================================================================
+  publish-documentation:
+    name: Publish documentation
+    runs-on: ubuntu-latest
+    needs: [build-documentation]
+    permissions:
+      # Both required by actions/deploy-pages
+      pages: write
+      id-token: write
+    environment:
+      name: documentation-website
+      url: ${{steps.publish.outputs.page_url}}
+    if: |
+      github.event_name == 'release'
+      || (github.event_name == 'workflow_dispatch' && github.event.inputs.publish-docs-website == 'true')
+      || (github.event_name == 'push' && vars.CONTINUOUS_DOCUMENTATION)
+    steps:
+      # ----------------------------------------------------------------------- Publish to GitHub Pages
+      - name: Publish to GitHub Pages
+        id: publish
+        uses: actions/deploy-pages@v4
