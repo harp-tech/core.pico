@@ -8,7 +8,7 @@ add_definitions(-DGIT_HASH="${COMMIT_ID}") # Usable in source code.
 
 # Specify USB Manufacturer and Product descriptions.
 add_definitions(-DUSBD_MANUFACTURER="Allen Institute")
-add_definitions(-DHARP_DEVICE_DESCRIPTION="Harp3226 | Fw5.0.0 | Harp Club Demo")
+add_definitions(-DUSBD_PRODUCT="Example Device")
 
 # PICO_SDK_PATH must be defined.
 include(${PICO_SDK_PATH}/pico_sdk_init.cmake)
@@ -24,10 +24,6 @@ add_subdirectory(../../firmware build) # Path to harp.core.rp2040.
 add_executable(${PROJECT_NAME}
     src/main.cpp
 )
-
-pico_set_program_name(${PROJECT_NAME} "device.regulatordemo")
-pico_set_program_description(${PROJECT_NAME} "Harp3226 | Fw5.0.0 | Harp Club Demo")
-pico_set_program_version(${PROJECT_NAME} "5.0.0")
 
 include_directories(inc)
 
