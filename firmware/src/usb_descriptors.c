@@ -38,15 +38,17 @@
 
 // FIXME: can we get these into a header file?
 // Override "Pico". Do this before including pico-related dependencies.
-#ifndef USBD_PRODUCT
-#define USBD_PRODUCT "Harp Device"
+#ifndef HARP_DEVICE_DESCRIPTION
+#warning "Harp device description is not configured!"
+#define HARP_DEVICE_DESCRIPTION "Harp0|Unnamed Harp Device"
 #endif
 
 #include "tusb.h"
 //#include "pico/stdio_usb/reset_interface.h"
 #include "pico/unique_id.h"
 
-#define USBD_DESC_STR_MAX (64) // Override default of 20 (max 127).
+//TODO: Is there any actual downside to just using the max value here?
+#define USBD_DESC_STR_MAX (127) // Override default of 20 (max 127).
 
 #ifndef USBD_VID
 #define USBD_VID (0x2E8A) // Raspberry Pi
@@ -87,9 +89,8 @@
 
 #define USBD_STR_0 (0x00)
 #define USBD_STR_MANUF (0x01)
-#define USBD_STR_PRODUCT (0x02)
+#define USBD_STR_HARP_DESCRIPTION (0x02)
 #define USBD_STR_SERIAL (0x03)
-#define USBD_STR_CDC (0x04)
 #define USBD_STR_RPI_RESET (0x05)
 
 // Note: descriptors returned from callbacks must exist long enough for transfer to complete
@@ -106,7 +107,7 @@ static const tusb_desc_device_t usbd_desc_device = {
     .idProduct = USBD_PID,
     .bcdDevice = 0x0100,
     .iManufacturer = USBD_STR_MANUF,
-    .iProduct = USBD_STR_PRODUCT,
+    .iProduct = USBD_STR_HARP_DESCRIPTION,
     .iSerialNumber = USBD_STR_SERIAL,
     .bNumConfigurations = 1,
 };
@@ -119,7 +120,7 @@ static const uint8_t usbd_desc_cfg[USBD_DESC_LEN] = {
     TUD_CONFIG_DESCRIPTOR(1, USBD_ITF_MAX, USBD_STR_0, USBD_DESC_LEN,
         USBD_CONFIGURATION_DESCRIPTOR_ATTRIBUTE, USBD_MAX_POWER_MA),
 
-    TUD_CDC_DESCRIPTOR(USBD_ITF_CDC, USBD_STR_CDC, USBD_CDC_EP_CMD,
+    TUD_CDC_DESCRIPTOR(USBD_ITF_CDC, USBD_STR_HARP_DESCRIPTION, USBD_CDC_EP_CMD,
         USBD_CDC_CMD_MAX_SIZE, USBD_CDC_EP_OUT, USBD_CDC_EP_IN, USBD_CDC_IN_OUT_MAX_SIZE),
 
 #if PICO_STDIO_USB_ENABLE_RESET_VIA_VENDOR_INTERFACE
@@ -131,9 +132,8 @@ static char usbd_serial_str[PICO_UNIQUE_BOARD_ID_SIZE_BYTES * 2 + 1];
 
 static const char *const usbd_desc_str[] = {
     [USBD_STR_MANUF] = USBD_MANUFACTURER,
-    [USBD_STR_PRODUCT] = USBD_PRODUCT,
+    [USBD_STR_HARP_DESCRIPTION] = HARP_DEVICE_DESCRIPTION,
     [USBD_STR_SERIAL] = usbd_serial_str,
-    [USBD_STR_CDC] = "Board CDC",
 #if PICO_STDIO_USB_ENABLE_RESET_VIA_VENDOR_INTERFACE
     [USBD_STR_RPI_RESET] = "Reset",
 #endif
