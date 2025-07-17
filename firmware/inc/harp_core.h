@@ -253,10 +253,10 @@ public:
 
 /**
  * \brief true if the "events enabled" flag has been set in the
- *  R_OPERATION_CTRL register.
+ *  R_OPERATION_CTRL register. Equivalent to the device Op Mode being ACTIVE.
  */
     static inline bool events_enabled()
-    {return (self->regs.R_OPERATION_CTRL & 0x03) == ACTIVE;}
+    {return self->get_op_mode() == ACTIVE;}
 
 /**
  * \brief get the total elapsed microseconds (64-bit) in "Harp" time.
@@ -357,6 +357,12 @@ public:
  */
     static void force_state(op_mode_t next_state)
     {self->update_state(true, next_state);}
+
+/**
+ * \brief return the Operaion Mode (STANDBY, ACTIVE, SPEED)
+ */
+    static inline op_mode_t get_op_mode()
+    {return op_mode_t(self->regs_.r_operation_ctrl_bits.OP_MODE);}
 
 /**
  * \brief set the 16 bytews in the R_UUID register. Any unspecified bytes will
