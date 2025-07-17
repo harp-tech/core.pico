@@ -14,6 +14,9 @@
 #include <hardware/timer.h>
 #include <pico/unique_id.h>
 #include <pico/bootrom.h>
+#if defined(PICO_RP2040) // Invoke pico-specific fast-integer-division hardware.
+    #include <hardware/flash.h>
+#endif
 
 #define HARP_VERSION_MAJOR (0)
 #define HARP_VERSION_MINOR (0)
