@@ -21,6 +21,7 @@ HarpCore::HarpCore(uint16_t who_am_i, semver_t firmware, semver_t hardware,
        interface_hash},
  rx_buffer_index_{0}, total_bytes_read_{rx_buffer_index_}, new_msg_{false},
  set_visual_indicators_fn_{nullptr}, handle_r_clock_config_write_fn_{nullptr},
+ set_led_fn_{nullptr}, get_led_fn_{nullptr},
  sync_{nullptr}, offset_us_64_{0},
  disconnect_handled_{false}, connect_handled_{false}, sync_handled_{false},
  heartbeat_interval_us_{HEARTBEAT_STANDBY_INTERVAL_US}
