@@ -15,12 +15,6 @@
 #define OPLEDEN_OFFSET (6)
 #define ALIVE_EN_OFFSET (7)
 
-// RESET_DEV bitfields
-#define RST_DEV_OFFSET (0)
-#define RST_DFU_OFFSET (5)
-#define BOOT_DEF_OFFSET (6)
-#define BOOT_EE_OFFSET (7)
-
 /**
  * \brief enum where the name is the name of the register and the
  *        value is the address according to the harp protocol spec.
@@ -92,8 +86,9 @@ struct CoreRegValues
     volatile uint32_t R_TIMESTAMP_SECOND;
     volatile uint16_t R_TIMESTAMP_MICRO;
     volatile uint8_t R_OPERATION_CTRL;
-    volatile uint8_t R_RESET_DEF;
+    volatile uint8_t R_RESET_DEV;
     volatile char R_DEVICE_NAME[25];
+    volatile char default_name[25];
     volatile uint16_t R_SERIAL_NUMBER;
     volatile uint8_t R_CLOCK_CONFIG;
     volatile uint8_t R_TIMESTAMP_OFFSET;  // Deprecated.
@@ -118,6 +113,9 @@ struct CoreRegValues
      R_FW_VERSION_H{firmware.major},
      R_FW_VERSION_L{firmware.minor},
      R_OPERATION_CTRL{0},
+     R_RESET_DEV{0},
+     R_DEVICE_NAME{0},
+     default_name{0},
      R_SERIAL_NUMBER{0},
      R_CLOCK_CONFIG{0},
      R_TIMESTAMP_OFFSET{0},
@@ -129,15 +127,18 @@ struct CoreRegValues
                .interface_hash = {0}}
     {
         strcpy((char*)R_DEVICE_NAME, name);
+        strcpy((char*)default_name, name);
         memcpy(R_TAG, tag, sizeof(R_TAG));
         memcpy(R_VERSION.core_id, core_id, sizeof(harp_version_reg_t::core_id));
         memcpy(R_VERSION.interface_hash, interface_hash,
             sizeof(harp_version_reg_t::interface_hash));
+        // Flag that we only boot from non-volatile memory
+        r_reset_dev_bits.BOOT_DEF = 1;
     }
 
     // Syntactic Sugar. Make bitfields for certain registers easier to access.
     OperationCtrlBits& r_operation_ctrl_bits = *((OperationCtrlBits*)(&R_OPERATION_CTRL));
-    ResetDefBits& r_reset_def_bits = *((ResetDefBits*)(&R_RESET_DEF));
+    ResetDevBits& r_reset_dev_bits = *((ResetDevBits*)(&R_RESET_DEV));
     ClockConfigBits& r_clock_config_bits = *((ClockConfigBits*)(&R_CLOCK_CONFIG));
 };
 #pragma pack(pop)

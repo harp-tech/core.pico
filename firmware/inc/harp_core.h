@@ -18,10 +18,10 @@
 #include <pico/bootrom.h>
 
 // Project version
-inline constexpr semver_t PICO_CORE_VERSION = {1, 0, 0};
+inline constexpr semver_t PICO_CORE_VERSION = {1, 1, 0};
 
 // Version of the Harp Protocol that this library most closely implements.
-inline constexpr semver_t HARP_PROTOCOL = {1, 0, 0};
+inline constexpr semver_t HARP_PROTOCOL = {2, 0, 0};
 
 inline constexpr uint8_t RPI_CORE_ID[] = {'r', 'p', 'i'};
 
@@ -664,7 +664,7 @@ private:
                   read_reg_generic, write_timestamp_microsecond),
      RegSpec::U8(&regs_.R_OPERATION_CTRL,
                   read_reg_generic, write_operation_ctrl),
-     RegSpec::U8(&regs_.R_RESET_DEF,
+     RegSpec::U8(&regs_.R_RESET_DEV,
                  read_reg_generic, write_reset_dev),
      RegSpec::U8Array(&regs_.R_DEVICE_NAME,  sizeof(regs_.R_DEVICE_NAME),
                       read_reg_generic, write_reg_generic),

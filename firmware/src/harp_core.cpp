@@ -1,3 +1,4 @@
+#include "core_reg_bits.h"
 #include "core_registers.h"
 #include "harp_message.h"
 #include <harp_core.h>
@@ -438,31 +439,58 @@ void HarpCore::write_operation_ctrl(msg_t& msg)
 
 void HarpCore::write_reset_dev(msg_t& msg)
 {
-    uint8_t& write_byte = *((uint8_t*)msg.payload);
     // R_RESET_DEV Register state does not need to be updated since writing to
     // it only triggers behavior.
-    // Tease out relevant flags.
-    const bool& rst_dev_bit = bool((write_byte >> RST_DEV_OFFSET) & 1u);
-    const bool& reset_dfu_bit = bool((write_byte >> RST_DFU_OFFSET) & 1u);
-    // Issue a harp reply only if we aren't resetting.
-    // TODO: unclear if this is the appropriate behavior.
-    // Reset if specified to do so.
-#if defined(PICO_RP2040) || defined(PICO_RP2350)
-    if (reset_dfu_bit)
-        reset_usb_boot(0,0);
-#else
-#pragma warning("Boot-to-DFU-mode via Harp Protocol not supported for this device.")
-#endif
-    if (rst_dev_bit)
+    ResetDevBits& cmd = *((ResetDevBits*)msg.payload); // safe bc byte-aligned.
+    // While only one bit should be set at a time, prioritize them LSbit to
+    // MSBit for predictable behavior.
+    if (cmd.RST_DEF) // Reset to defaults. Do not break the serial connection.
     {
         // Reset core state machine and app.
         self->regs_.r_operation_ctrl_bits.OP_MODE = STANDBY;
         self->reset_app();
-        return; // <- Never reached because we rebooted.
+        return; // No Harp reply needed.
+    }
+    if (cmd.RST_EE) // Not supported by this core.
+    {
+        if (!HarpCore::is_muted())
+            send_harp_reply(WRITE_ERROR, msg.header.address);
+        return;
+    }
+    if (cmd.SAVE) // Not supported by this core.
+    {
+        if (!HarpCore::is_muted())
+            send_harp_reply(WRITE_ERROR, msg.header.address);
+        return;
+    }
+    if (cmd.NAME_TO_DEFAULT) // Reset name to default name.
+    {
+        memcpy((void*)self->regs_.R_DEVICE_NAME, (void*)self->regs_.default_name,
+               sizeof(self->regs_.R_DEVICE_NAME));
+    }
+    // Reset if specified to do so.
+    if (cmd.UPDATE_FIRMWARE)
+    {
+#if defined(PICO_RP2040) || defined(PICO_RP2350)
+        reset_usb_boot(0,0); // Does not return.
+#else
+    #pragma warning("Boot-to-DFU-mode via Harp Protocol not supported for this device.")
+#endif
+    }
+    if (cmd.BOOT_DEF) // Read-Only.
+    {
+        if (!HarpCore::is_muted())
+            send_harp_reply(WRITE_ERROR, msg.header.address);
+        return;
+    }
+    if (cmd.BOOT_EE) // Read-only.
+    {
+        if (!HarpCore::is_muted())
+            send_harp_reply(WRITE_ERROR, msg.header.address);
+        return;
     }
     if (!HarpCore::is_muted())
         send_harp_reply(WRITE, msg.header.address);
-    // TODO: handle the other bit-specific operations.
 }
 
 void HarpCore::write_r_clock_config_default(msg_t& msg)
