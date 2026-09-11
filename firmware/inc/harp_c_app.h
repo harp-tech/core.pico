@@ -24,12 +24,10 @@ private:
  *  update the app state.
  * \param reset_fn pointer to function that will reset the app state.
  */
-    HarpCApp(uint16_t who_am_i,
-             uint8_t hw_version_major, uint8_t hw_version_minor,
-             uint8_t assembly_version,
-             uint8_t fw_version_major, uint8_t fw_version_minor,
-             uint16_t serial_number, const char name[],
+    HarpCApp(uint16_t who_am_i, semver_t firmware, semver_t hardware,
+             const char name[],
              const uint8_t tag[],
+             const uint8_t interface_hash[],
              RegSpec* app_reg_specs, size_t app_reg_count,
              void (* update_fn)(void), void (* reset_fn)(void));
 
@@ -43,12 +41,10 @@ public:
 /**
  * \brief initialize the harp core app singleton with parameters and init Tinyusb.
  */
-    static HarpCApp& init(uint16_t who_am_i,
-                          uint8_t hw_version_major, uint8_t hw_version_minor,
-                          uint8_t assembly_version,
-                          uint8_t fw_version_major, uint8_t fw_version_minor,
-                          uint16_t serial_number, const char name[],
+    static HarpCApp& init(uint16_t who_am_i, semver_t firmware, semver_t hardware,
+                          const char name[],
                           const uint8_t tag[],
+                          const uint8_t interface_hash[],
                           RegSpec* app_reg_specs, size_t app_reg_count,
                           void (* update_fn)(void), void (*reset_fn)(void));
 

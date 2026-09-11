@@ -18,16 +18,12 @@
 #include <pico/bootrom.h>
 
 // Project version
-inline constexpr size_t PICO_CORE_VERSION_MAJOR = 1;
-inline constexpr size_t PICO_CORE_VERSION_MINOR = 0;
-inline constexpr size_t PICO_CORE_VERSION_PATCH = 0;
+inline constexpr semver_t PICO_CORE_VERSION = {1, 1, 0};
 
 // Version of the Harp Protocol that this library most closely implements.
-inline constexpr size_t HARP_VERSION_MAJOR = 0;
-inline constexpr size_t HARP_VERSION_MINOR = 0;
-inline constexpr size_t HARP_VERSION_PATCH = 0;
+inline constexpr semver_t HARP_PROTOCOL = {2, 0, 0};
 
-
+inline constexpr uint8_t RPI_CORE_ID[] = {'r', 'p', 'i'};
 
 #define NO_PC_INTERVAL_US (3'000'000UL) // Threshold duration. If the connection
                                         // with the PC has been inactive for
@@ -61,12 +57,10 @@ using enum reg_type_t;
 
 // Make constructor protected to prevent creating instances outside of init().
 protected: // protected, but not private, to enable derived class usage.
-    HarpCore(uint16_t who_am_i,
-             uint8_t hw_version_major, uint8_t hw_version_minor,
-             uint8_t assembly_version,
-             uint8_t fw_version_major, uint8_t fw_version_minor,
-             uint16_t serial_number, const char name[],
-             const uint8_t tag[]);
+    HarpCore(uint16_t who_am_i, semver_t firmware, semver_t hardware,
+             const char name[],
+             const uint8_t tag[],
+             const uint8_t interface_hash[]);
 
     ~HarpCore();
 
@@ -83,12 +77,10 @@ public:
  * \note default constructor, copy constructor, and assignment operator have
  *  been disabled.
  */
-    static HarpCore& init(uint16_t who_am_i,
-                          uint8_t hw_version_major, uint8_t hw_version_minor,
-                          uint8_t assembly_version,
-                          uint8_t fw_version_major, uint8_t fw_version_minor,
-                          uint16_t serial_number, const char name[],
-                          const uint8_t tag[]);
+    static HarpCore& init(uint16_t who_am_i, semver_t firmware, semver_t hardware,
+                          const char name[],
+                          const uint8_t tag[],
+                          const uint8_t interface_hash[]);
 
     static inline HarpCore* self = nullptr; // pointer to the singleton instance.
     static HarpCore& instance() {return *self;} ///< returns the singleton.
@@ -179,6 +171,7 @@ public:
  * \note this function is static such that we can write functions that invoke it
  *  before instantiating the HarpCore singleton.
  * \note Calls `tud_task()`.
+ * \note will update the timestamp registers.
  * \param reply_type `READ`, `WRITE`, `EVENT`, `READ_ERROR`, or `WRITE_ERROR` enum.
  * \param reg_name address to mark the origin point of the data.
  * \param data pointer to payload content of the data.
@@ -247,13 +240,11 @@ public:
                         spec.payload_type, harp_time_us);
     }
 
-
-
 /**
  * \brief true if the mute flag has been set in the R_OPERATION_CTRL register.
  */
     static inline bool is_muted()
-    {return bool((self->regs_.R_OPERATION_CTRL >> MUTE_RPL_OFFSET) & 0x01);}
+    {return bool(self->regs_.r_operation_ctrl_bits.MUTE_RPL);}
 
 /**
  * \brief true if the device is synchronized via external CLKIN input.
@@ -371,6 +362,24 @@ public:
     {self->set_visual_indicators_fn_ = func;}
 
 /**
+ * \brief assign functions that control the external OP_LED.
+ */
+    inline void set_op_led_fns(void (*set_led_fn)(bool), bool (*get_led_fn)())
+    {
+        set_led_fn_ = set_led_fn;
+        get_led_fn_ = get_led_fn;
+    }
+
+/**
+ * \brief attach a handler function for dealing with writes to the
+ * r_clock_config register.
+ * \warning like all other write handler functions, this function must send
+ * a harp reply at the end of the function only if the device is not muted.
+ */
+    static void set_r_clock_config_write_handler(void (*func)(msg_t&))
+    {self->handle_r_clock_config_write_fn_ = func;}
+
+/**
  * \brief force the op mode state. Useful to put the core in an error state.
  */
     static void force_state(op_mode_t next_state)
@@ -433,9 +442,24 @@ protected:
 /**
  * \brief Enable or disable external virtual indicators.
  */
-    void set_visual_indicators(bool enabled)
-    {if (set_visual_indicators_fn_ != nullptr)
-        set_visual_indicators_fn_(enabled);}
+    inline void set_visual_indicators(bool enabled)
+    {
+        if (set_visual_indicators_fn_ != nullptr)
+        set_visual_indicators_fn_(enabled);
+    }
+
+    inline void set_led(bool enabled)
+    {
+        if (set_led_fn_ != nullptr)
+            set_led_fn_(enabled);
+    }
+
+    inline bool get_led()
+    {
+        if (get_led_fn_ != nullptr)
+            return get_led_fn_();
+        return 0;
+    }
 
 /**
  * \brief send one harp reply read message per app register.
@@ -457,6 +481,22 @@ protected:
  * \brief function pointer to function that enables/disables visual indicators.
  */
     void (* set_visual_indicators_fn_)(bool);
+
+/**
+ * \brief function pointer to function that enables/disables OP_LED.
+ */
+    void (* set_led_fn_)(bool);
+
+/**
+ * \brief function pointer to function that reads the state of the OP_LED.
+ */
+    bool (* get_led_fn_)();
+
+/**
+ * \brief function pointer. if not null, call this function when writing to
+ * the `R_CLOCK_CONFIG` register.
+ */
+    void (* handle_r_clock_config_write_fn_)(msg_t&);
 
 /**
  * \brief function pointer to synchronizer if configured.
@@ -583,11 +623,27 @@ private:
     // registers. One-per-harp-register where necessary, but read_reg_generic()
     // can be used in most cases.
     // Note: these all need to have the same function signature.
-    static void read_timestamp_second(uint8_t reg_name);
-    static void read_timestamp_microsecond(uint8_t reg_name);
-
     static void read_uuid(uint8_t reg_name);
 
+
+    static inline void update_heartbeat_register()
+    {
+        const uint8_t& state = self->regs_.r_operation_ctrl_bits.OP_MODE;
+        self->regs_.R_HEARTBEAT = ((state == ACTIVE? 1: 0) << 1) | (is_synced()? 1: 0);
+    }
+
+/**
+ * \brief read the [Heartbeat][https://github.com/harp-tech/protocol/blob/main/Device.md#r_heartbeat-u16--device-status-information]
+ * register.
+ */
+    static void read_heartbeat(uint8_t reg_name);
+
+/**
+ * \brief identify (via underlying register) whether this device is a clock
+ * generator (false by default).
+ */
+    static inline void set_is_clock_generator(bool is_clock_gen)
+    {self->regs_.r_clock_config_bits.CLK_GEN = is_clock_gen;}
 
     // write handler function per core register. Handles write
     // operations to that register.
@@ -599,14 +655,11 @@ private:
  */
     static void write_timestamp_second(msg_t& msg);
 
-/**
- * \brief Handle writing to the `R_TIMESTAMP_MICROSECOND` register and update
- *  the device's Harp time to reflect the microseconds written to this register.
- */
-    static void write_timestamp_microsecond(msg_t& msg);
 
     static void write_operation_ctrl(msg_t& msg);
     static void write_reset_dev(msg_t& msg);
+
+    static void write_r_clock_config_default(msg_t& msg);
 
     CoreRegValues regs_; ///< struct of Harp core register values.
 
@@ -630,24 +683,28 @@ private:
      RegSpec::U8((void*)&regs_.R_FW_VERSION_L,
                  read_reg_generic, write_reg_error),
      RegSpec::U32(&regs_.R_TIMESTAMP_SECOND,
-                  read_timestamp_second, write_timestamp_second),
+                  read_reg_generic, write_timestamp_second),
      RegSpec::U16(&regs_.R_TIMESTAMP_MICRO,
-                  read_timestamp_microsecond, write_timestamp_microsecond),
+                  read_reg_generic, write_reg_error),
      RegSpec::U8(&regs_.R_OPERATION_CTRL,
                   read_reg_generic, write_operation_ctrl),
-     RegSpec::U8(&regs_.R_RESET_DEF,
+     RegSpec::U8(&regs_.R_RESET_DEV,
                  read_reg_generic, write_reset_dev),
      RegSpec::U8Array(&regs_.R_DEVICE_NAME,  sizeof(regs_.R_DEVICE_NAME),
                       read_reg_generic, write_reg_generic),
      RegSpec::U16(&regs_.R_SERIAL_NUMBER,
                   read_reg_generic, write_reg_generic),
      RegSpec::U8(&regs_.R_CLOCK_CONFIG,
-                 read_reg_generic, write_reg_generic),
+                 read_reg_generic, write_r_clock_config_default),
      RegSpec::U8(&regs_.R_TIMESTAMP_OFFSET,
-                 read_reg_generic, write_reg_generic),
+                 read_reg_generic, write_reg_error),
      RegSpec::U8Array(&regs_.R_UUID, sizeof(regs_.R_UUID),
                       read_uuid, write_reg_error),
      RegSpec::U8Array(&regs_.R_TAG, sizeof(regs_.R_TAG),
+                      read_reg_generic, write_reg_error),
+     RegSpec::U16(&regs_.R_HEARTBEAT,
+                  read_heartbeat, write_reg_error),
+     RegSpec::U8Array(&regs_.R_VERSION, sizeof(regs_.R_VERSION),
                       read_reg_generic, write_reg_error),
     };
 };

@@ -1,28 +1,28 @@
 #ifndef CORE_REG_BITS_H
 #define CORE_REG_BITS_H
-#include <core_registers.h>
-
 
 struct OperationCtrlBits
 {
-    unsigned OP_MODE    : 2;
-    unsigned            : 1;
-    unsigned DUMP       : 1;
-    unsigned MUTE_RPL   : 1;
-    unsigned VISUALEN   : 1;
-    unsigned OPLEDEN    : 1;
-    unsigned ALIVE_EN   : 1;
+    unsigned OP_MODE      : 2;
+    unsigned HEARTBEAT_EN : 1;
+    unsigned DUMP         : 1;
+    unsigned MUTE_RPL     : 1;
+    unsigned VISUAL_EN     : 1;
+    unsigned OPLED_EN      : 1;
+    unsigned ALIVE_EN     : 1;
 };
 
 
-struct ResetDefBits
+struct ResetDevBits
 {
-    unsigned RESET_DEF  : 1;
-    unsigned RESET_EE   : 1;
-    unsigned SAVE       : 1;
-    unsigned            : 3;
-    unsigned BOOT_DEF   : 1;
-    unsigned BOOT_EE    : 1;
+    unsigned RST_DEF         : 1;
+    unsigned RST_EE          : 1;
+    unsigned SAVE            : 1;
+    unsigned NAME_TO_DEFAULT : 1;
+    unsigned                 : 1;
+    unsigned UPDATE_FIRMWARE : 1;
+    unsigned BOOT_DEF        : 1;
+    unsigned BOOT_EE         : 1;
 };
 
 struct ClockConfigBits

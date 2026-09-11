@@ -1,33 +1,28 @@
+#include "core_reg_bits.h"
 #include "core_registers.h"
 #include "harp_message.h"
 #include <harp_core.h>
 
-HarpCore& HarpCore::init(uint16_t who_am_i,
-                         uint8_t hw_version_major, uint8_t hw_version_minor,
-                         uint8_t assembly_version,
-                         uint8_t fw_version_major, uint8_t fw_version_minor,
-                         uint16_t serial_number, const char name[],
-                         const uint8_t tag[])
+HarpCore& HarpCore::init(uint16_t who_am_i, semver_t firmware, semver_t hardware,
+                         const char name[],
+                         const uint8_t tag[],
+                         const uint8_t interface_hash[])
 {
     // Create the singleton instance using the private constructor.
-    static HarpCore core(who_am_i, hw_version_major, hw_version_minor,
-                         assembly_version,
-                         fw_version_major, fw_version_minor, serial_number,
-                         name, tag);
-    return core;
+    static HarpCore c(who_am_i, firmware, hardware, name, tag, interface_hash);
+    return c;
 }
 
-HarpCore::HarpCore(uint16_t who_am_i,
-                   uint8_t hw_version_major, uint8_t hw_version_minor,
-                   uint8_t assembly_version,
-                   uint8_t fw_version_major, uint8_t fw_version_minor,
-                   uint16_t serial_number, const char name[],
-                   const uint8_t tag[])
-:regs_{who_am_i, hw_version_major, hw_version_minor, assembly_version,
-       HARP_VERSION_MAJOR, HARP_VERSION_MINOR,
-       fw_version_major, fw_version_minor, serial_number, name, tag},
+HarpCore::HarpCore(uint16_t who_am_i, semver_t firmware, semver_t hardware,
+                   const char name[],
+                   const uint8_t tag[],
+                   const uint8_t interface_hash[])
+:regs_{who_am_i, HARP_PROTOCOL, firmware, hardware, name, tag, RPI_CORE_ID,
+       interface_hash},
  rx_buffer_index_{0}, total_bytes_read_{rx_buffer_index_}, new_msg_{false},
- set_visual_indicators_fn_{nullptr}, sync_{nullptr}, offset_us_64_{0},
+ set_visual_indicators_fn_{nullptr}, handle_r_clock_config_write_fn_{nullptr},
+ set_led_fn_{nullptr}, get_led_fn_{nullptr},
+ sync_{nullptr}, offset_us_64_{0},
  disconnect_handled_{false}, connect_handled_{false}, sync_handled_{false},
  heartbeat_interval_us_{HEARTBEAT_STANDBY_INTERVAL_US}
 {
@@ -216,17 +211,32 @@ void HarpCore::update_state(bool force, op_mode_t forced_next_state)
     {
         self->heartbeat_interval_us_ = HEARTBEAT_STANDBY_INTERVAL_US;
     }
-    // Handle OPERATION_CTRL behavior.
+    // Handle OPERATION_CTRL whole-second behavior.
     if (int32_t(time_us - self->next_heartbeat_time_us_) >= 0)
     {
         self->next_heartbeat_time_us_ += self->heartbeat_interval_us_;
-        // Dispatch heartbeat msg and Blink LED.
-        if (self->regs_.r_operation_ctrl_bits.ALIVE_EN)
+        // Handle LED tick
+        if (self->regs_.r_operation_ctrl_bits.OPLED_EN)
         {
-            //if (self->regs_.r_operation_ctrl_bits.VISUALEN)
-            //    set_led(!get_led);
-            if ((state == ACTIVE) & !is_muted()) // i.e: events enabled
+            if (self->regs_.r_operation_ctrl_bits.VISUAL_EN)
+                self->set_led(!self->get_led());
+            else
+                self->set_led(0);
+        }
+        // Handle periodic messaging behavior.
+        if ((state == ACTIVE) & !is_muted())
+        {
+            // HEARTBEAT_EN takes precedence over ALIVE_EN
+            if (self->regs_.r_operation_ctrl_bits.HEARTBEAT_EN)
+            {
+                update_heartbeat_register();
+                send_harp_reply(EVENT, HEARTBEAT);
+            }
+            else if (self->regs_.r_operation_ctrl_bits.ALIVE_EN)
+            {
+                // Timestamp registers are updated automatically.
                 send_harp_reply(EVENT, TIMESTAMP_SECOND);
+            }
         }
     }
     // Handle in-state dependent output logic.
@@ -247,6 +257,8 @@ void HarpCore::send_harp_reply(msg_type_t reply_type, uint8_t reg_name,
     msg_header_t header{reply_type, raw_length, reg_name, 255,
                         reg_type_t(std::to_underlying(HAS_TIMESTAMP) |
                                    std::to_underlying(payload_type))};
+    // Update timestamp before sending data in case we are sending the timestamp.
+    self->set_timestamp_regs(harp_time_us);
 #ifdef DEBUG_HARP_MSG_OUT
     printf("Sending msg: \r\n");
     printf("  type: %d\r\n", header.type);
@@ -271,7 +283,7 @@ void HarpCore::send_harp_reply(msg_type_t reply_type, uint8_t reg_name,
         checksum += byte;
         tud_cdc_write_char(byte);
     }
-    self->set_timestamp_regs(harp_time_us); // update and push timestamp.
+    // Push most-recently-updated timestamp.
     for (uint8_t i = 0; i < sizeof(self->regs_.R_TIMESTAMP_SECOND); ++i)
     {
         uint8_t& byte = *(((uint8_t*)(&self->regs_.R_TIMESTAMP_SECOND)) + i);
@@ -357,12 +369,6 @@ inline void HarpCore::set_timestamp_regs(uint64_t harp_time_us)
 #endif
 }
 
-void HarpCore::read_timestamp_second(uint8_t reg_name)
-{
-    self->update_timestamp_regs();
-    read_reg_generic(reg_name);
-}
-
 void HarpCore::write_timestamp_second(msg_t& msg)
 {
     uint32_t seconds;
@@ -388,55 +394,27 @@ void HarpCore::write_timestamp_second(msg_t& msg)
     send_harp_reply(WRITE, msg.header.address);
 }
 
-void HarpCore::read_timestamp_microsecond(uint8_t reg_name)
-{
-    // Update register. Then trigger a generic register read.
-    self->update_timestamp_regs();
-    read_reg_generic(reg_name);
-}
-
-void HarpCore::write_timestamp_microsecond(msg_t& msg)
-{
-    const uint32_t msg_us = ((uint32_t)(*((uint16_t*)msg.payload))) << 5;
-    // Pico implementation: replace the current number of elapsed microseconds
-    // in harp time with the value received from the message.
-#if defined(PICO_RP2040) // use 2040-specific integer hardware divider.
-    uint64_t curr_total_s  = div_u64u64(harp_time_us_64(), 1'000'000ULL);
-#else
-    uint64_t curr_total_s  = harp_time_us_64() / 1'000'000ULL;
-#endif
-    uint64_t new_harp_time_us = curr_total_s + msg_us;
-    set_harp_time_us_64(new_harp_time_us);
-    // Update time-dependent behavior. Take harp time from this function such
-    // that external synchronizer takes priority.
-    update_next_heartbeat_from_curr_harp_time_us(harp_time_us_64());
-    // Send harp reply.
-    // Note: Harp timestamp registers will be updated before dispatching reply.
-    send_harp_reply(WRITE, msg.header.address);
-}
-
 void HarpCore::write_operation_ctrl(msg_t& msg)
 {
-    uint8_t& write_byte = *((uint8_t*)msg.payload);
+    OperationCtrlBits& cmd = *((OperationCtrlBits*)msg.payload); // is byte aligned
     // Handle OP Mode state-edge logic here since we can force a state change
     // directly.
     const uint8_t& state = self->regs_.r_operation_ctrl_bits.OP_MODE;
-    const uint8_t& next_state = (*((OperationCtrlBits*)(&write_byte))).OP_MODE;
+    const uint8_t& next_state = cmd.OP_MODE;
     if (state != next_state)
         self->force_state((op_mode_t)next_state);
     // Update register state. Note: DUMP bit always reads as zero.
-    self->regs_.R_OPERATION_CTRL = write_byte & ~(0x01 << DUMP_OFFSET);
-    self->set_visual_indicators(bool((write_byte >> VISUAL_EN_OFFSET) & 0x01));
+    copy_msg_payload_to_register(msg);
+    self->regs_.r_operation_ctrl_bits.DUMP = 0;
+    self->set_visual_indicators(bool(self->regs_.r_operation_ctrl_bits.VISUAL_EN));
     // Bail early if we are muted.
     if (self->is_muted())
         return;
-    // Tease out flags.
-    bool DUMP = bool((write_byte >> DUMP_OFFSET) & 0x01);
     // Send WRITE reply.
     send_harp_reply(WRITE, msg.header.address);
     // DUMP-bit-specific behavior: if set, dispatch one READ reply per register.
     // App registers must also dump their contents.
-    if (DUMP)
+    if (cmd.DUMP)
     {
         for (uint8_t address = 0; address < CORE_REG_COUNT; ++address)
             reg_address_to_spec(address).read_fn_ptr(address);
@@ -446,31 +424,68 @@ void HarpCore::write_operation_ctrl(msg_t& msg)
 
 void HarpCore::write_reset_dev(msg_t& msg)
 {
-    uint8_t& write_byte = *((uint8_t*)msg.payload);
     // R_RESET_DEV Register state does not need to be updated since writing to
     // it only triggers behavior.
-    // Tease out relevant flags.
-    const bool& rst_dev_bit = bool((write_byte >> RST_DEV_OFFSET) & 1u);
-    const bool& reset_dfu_bit = bool((write_byte >> RST_DFU_OFFSET) & 1u);
-    // Issue a harp reply only if we aren't resetting.
-    // TODO: unclear if this is the appropriate behavior.
-    // Reset if specified to do so.
-#if defined(PICO_RP2040) || defined(PICO_RP2350)
-    if (reset_dfu_bit)
-        reset_usb_boot(0,0);
-#else
-#pragma warning("Boot-to-DFU-mode via Harp Protocol not supported for this device.")
-#endif
-    if (rst_dev_bit)
+    ResetDevBits& cmd = *((ResetDevBits*)msg.payload); // safe bc byte-aligned.
+    // While only one bit should be set at a time, prioritize them LSbit to
+    // MSBit for predictable behavior.
+    if (cmd.RST_DEF) // Reset to defaults. Do not break the serial connection.
     {
         // Reset core state machine and app.
         self->regs_.r_operation_ctrl_bits.OP_MODE = STANDBY;
         self->reset_app();
-        return; // <- Never reached because we rebooted.
+        return; // No Harp reply needed.
+    }
+    if (cmd.RST_EE) // Not supported by this core.
+    {
+        if (!HarpCore::is_muted())
+            send_harp_reply(WRITE_ERROR, msg.header.address);
+        return;
+    }
+    if (cmd.SAVE) // Not supported by this core.
+    {
+        if (!HarpCore::is_muted())
+            send_harp_reply(WRITE_ERROR, msg.header.address);
+        return;
+    }
+    if (cmd.NAME_TO_DEFAULT) // Reset name to default name.
+    {
+        memcpy((void*)self->regs_.R_DEVICE_NAME, (void*)self->regs_.default_name,
+               sizeof(self->regs_.R_DEVICE_NAME));
+    }
+    // Reset if specified to do so.
+    if (cmd.UPDATE_FIRMWARE)
+    {
+#if defined(PICO_RP2040) || defined(PICO_RP2350)
+        reset_usb_boot(0,0); // Does not return.
+#else
+    #pragma warning("Boot-to-DFU-mode via Harp Protocol not supported for this device.")
+#endif
+    }
+    if (cmd.BOOT_DEF) // Read-Only.
+    {
+        if (!HarpCore::is_muted())
+            send_harp_reply(WRITE_ERROR, msg.header.address);
+        return;
+    }
+    if (cmd.BOOT_EE) // Read-only.
+    {
+        if (!HarpCore::is_muted())
+            send_harp_reply(WRITE_ERROR, msg.header.address);
+        return;
     }
     if (!HarpCore::is_muted())
         send_harp_reply(WRITE, msg.header.address);
-    // TODO: handle the other bit-specific operations.
+}
+
+void HarpCore::write_r_clock_config_default(msg_t& msg)
+{
+    if (self->handle_r_clock_config_write_fn_ != nullptr)
+    {
+        self->handle_r_clock_config_write_fn_(msg);
+        return;
+    }
+    write_reg_error(msg); // default behavior.
 }
 
 void HarpCore::read_uuid(uint8_t reg_name)
@@ -486,5 +501,13 @@ void HarpCore::read_uuid(uint8_t reg_name)
 #else
 #pragma warning("Harp Core Register UUID not autodetected for this board.")
 #endif
+    send_harp_reply(READ, reg_name);
+}
+
+void HarpCore::read_heartbeat(uint8_t reg_name)
+{
+    if (HarpCore::is_muted())
+        return;
+    update_heartbeat_register();
     send_harp_reply(READ, reg_name);
 }

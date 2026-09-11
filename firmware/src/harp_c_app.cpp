@@ -1,37 +1,30 @@
 #include "harp_message.h"
 #include "harp_c_app.h"
 
-HarpCApp& HarpCApp::init(uint16_t who_am_i,
-                         uint8_t hw_version_major, uint8_t hw_version_minor,
-                         uint8_t assembly_version,
-                         uint8_t fw_version_major, uint8_t fw_version_minor,
-                         uint16_t serial_number, const char name[],
+HarpCApp& HarpCApp::init(uint16_t who_am_i, semver_t firmware, semver_t hardware,
+                         const char name[],
                          const uint8_t tag[],
+                         const uint8_t interface_hash[],
                          RegSpec* app_reg_specs, size_t app_reg_count,
                          void (* update_fn)(void), void (* reset_fn)(void))
 {
-    static HarpCApp app(who_am_i, hw_version_major, hw_version_minor,
-                        assembly_version,
-                        fw_version_major, fw_version_minor, serial_number,
-                        name, tag, app_reg_specs, app_reg_count, update_fn,
+    static HarpCApp app(who_am_i, firmware, hardware, name, tag,
+                        interface_hash, app_reg_specs, app_reg_count, update_fn,
                         reset_fn);
     return app;
 }
 
-HarpCApp::HarpCApp(uint16_t who_am_i,
-                   uint8_t hw_version_major, uint8_t hw_version_minor,
-                   uint8_t assembly_version,
-                   uint8_t fw_version_major, uint8_t fw_version_minor,
-                   uint16_t serial_number, const char name[],
+HarpCApp::HarpCApp(uint16_t who_am_i, semver_t firmware, semver_t hardware,
+                   const char name[],
                    const uint8_t tag[],
+                   const uint8_t interface_hash[],
                    RegSpec* app_reg_specs, size_t app_reg_count,
                    void (*update_fn)(void), void (* reset_fn)(void))
 :app_reg_specs_{app_reg_specs},
  app_reg_count_{app_reg_count},
  update_fn_{update_fn},
  reset_fn_{reset_fn},
- HarpCore(who_am_i, hw_version_major, hw_version_minor, assembly_version,
-          fw_version_major, fw_version_minor, serial_number, name, tag)
+ HarpCore{who_am_i, firmware, hardware, name, tag, interface_hash}
 {
     // Call base class constructor.
     // Create a ptr to the first (and only) derived class instance created.
