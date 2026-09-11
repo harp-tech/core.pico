@@ -645,6 +645,8 @@ private:
     static inline void set_is_clock_generator(bool is_clock_gen)
     {self->regs_.r_clock_config_bits.CLK_GEN = is_clock_gen;}
 
+    static void read_uuid(uint8_t reg_name);
+
 
     // write handler function per core register. Handles write
     // operations to that register.
