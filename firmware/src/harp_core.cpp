@@ -1,3 +1,5 @@
+#include "core_registers.h"
+#include "harp_message.h"
 #include <harp_core.h>
 
 HarpCore& HarpCore::init(uint16_t who_am_i,
@@ -129,18 +131,23 @@ void HarpCore::handle_buffered_core_message()
     msg_t msg = get_buffered_msg();
     // TODO: check checksum.
     // Note: PC-to-Harp msgs don't have timestamps, so we don't check for them.
-    // Ignore out-of-range messages. Expect them to be handled by derived class.
-    if (msg.header.address > CORE_REG_COUNT)
+    // Ignore app-range messages. Expect them to be handled by derived class.
+    if (msg.header.address >= APP_REG_START_ADDRESS)
         return;
-    // Handle read-or-write behavior.
-    switch (msg.header.type)
+    if (msg.header.address >= CORE_REG_COUNT)
+        HarpCore::send_harp_reply(msg_type_t(msg.header.type | ERROR_MASK),
+            msg.header.address, nullptr, 0, msg.header.payload_type);
+    else
     {
-        case READ:
-            core_reg_specs_[msg.header.address].read_fn_ptr(msg.header.address);
-            break;
-        case WRITE:
-            core_reg_specs_[msg.header.address].write_fn_ptr(msg);
-            break;
+        switch (msg.header.type)
+        {
+            case READ:
+                core_reg_specs_[msg.header.address].read_fn_ptr(msg.header.address);
+                break;
+            case WRITE:
+                core_reg_specs_[msg.header.address].write_fn_ptr(msg);
+                break;
+        }
     }
     clear_msg();
 }
