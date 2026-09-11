@@ -645,9 +645,6 @@ private:
     static inline void set_is_clock_generator(bool is_clock_gen)
     {self->regs_.r_clock_config_bits.CLK_GEN = is_clock_gen;}
 
-    static void read_uuid(uint8_t reg_name);
-
-
     // write handler function per core register. Handles write
     // operations to that register.
     // Note: these all need to have the same function signature.
@@ -658,11 +655,6 @@ private:
  */
     static void write_timestamp_second(msg_t& msg);
 
-/**
- * \brief Handle writing to the `R_TIMESTAMP_MICROSECOND` register and update
- *  the device's Harp time to reflect the microseconds written to this register.
- */
-    static void write_timestamp_microsecond(msg_t& msg);
 
     static void write_operation_ctrl(msg_t& msg);
     static void write_reset_dev(msg_t& msg);
@@ -693,7 +685,7 @@ private:
      RegSpec::U32(&regs_.R_TIMESTAMP_SECOND,
                   read_reg_generic, write_timestamp_second),
      RegSpec::U16(&regs_.R_TIMESTAMP_MICRO,
-                  read_reg_generic, write_timestamp_microsecond),
+                  read_reg_generic, write_reg_error),
      RegSpec::U8(&regs_.R_OPERATION_CTRL,
                   read_reg_generic, write_operation_ctrl),
      RegSpec::U8(&regs_.R_RESET_DEV,

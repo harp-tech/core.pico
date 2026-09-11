@@ -394,26 +394,6 @@ void HarpCore::write_timestamp_second(msg_t& msg)
     send_harp_reply(WRITE, msg.header.address);
 }
 
-void HarpCore::write_timestamp_microsecond(msg_t& msg)
-{
-    const uint32_t msg_us = ((uint32_t)(*((uint16_t*)msg.payload))) << 5;
-    // Pico implementation: replace the current number of elapsed microseconds
-    // in harp time with the value received from the message.
-#if defined(PICO_RP2040) // use 2040-specific integer hardware divider.
-    uint64_t curr_total_s  = div_u64u64(harp_time_us_64(), 1'000'000ULL);
-#else
-    uint64_t curr_total_s  = harp_time_us_64() / 1'000'000ULL;
-#endif
-    uint64_t new_harp_time_us = curr_total_s + msg_us;
-    set_harp_time_us_64(new_harp_time_us);
-    // Update time-dependent behavior. Take harp time from this function such
-    // that external synchronizer takes priority.
-    update_next_heartbeat_from_curr_harp_time_us(harp_time_us_64());
-    // Send harp reply.
-    // Note: Harp timestamp registers will be updated before dispatching reply.
-    send_harp_reply(WRITE, msg.header.address);
-}
-
 void HarpCore::write_operation_ctrl(msg_t& msg)
 {
     OperationCtrlBits& cmd = *((OperationCtrlBits*)msg.payload); // is byte aligned

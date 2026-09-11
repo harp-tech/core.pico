@@ -19,6 +19,7 @@ struct ResetDevBits
     unsigned RST_EE          : 1;
     unsigned SAVE            : 1;
     unsigned NAME_TO_DEFAULT : 1;
+    unsigned                 : 1;
     unsigned UPDATE_FIRMWARE : 1;
     unsigned BOOT_DEF        : 1;
     unsigned BOOT_EE         : 1;
