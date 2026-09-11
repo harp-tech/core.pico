@@ -1,31 +1,23 @@
-#!/usr/bin/env python3
-from enum import Enum
-from pyharp.device import Device, DeviceMode
-from pyharp.messages import HarpMessage
-from pyharp.messages import MessageType
-from pyharp.messages import CommonRegisters as CoreRegs
-from struct import *
-from time import sleep, perf_counter
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.12"
+# dependencies = [
+#     "harp",
+# ]
+# ///
+"""Change local time (assumes a synchronizer is not connected)."""
 
-COM_PORT = "/dev/ttyACM0" # COMxx on Windows.
+from harp.device import core
+from harp.serial import open_device
+from harp.protocol import HarpMessage, MessageType
 
-device = Device(COM_PORT, "ibl.bin")
 
+SERIAL_PORT = "/dev/ttyACM0"  # or "COMx" in Windows, where "x" is the serial port number
 
-# Get the old time.
-curr_time_s = device.send(HarpMessage.ReadU32(
-                            CoreRegs.TIMESTAMP_SECOND).frame).payload[0]
-print(f"Current seconds: {curr_time_s}")
-
-# Update Harp time on the device.
-set_time_seconds = int(3e9)
-print(f"Setting Harp seconds to {set_time_seconds}")
-_ = device.send(HarpMessage.WriteU32(CoreRegs.TIMESTAMP_SECOND,
-                                     set_time_seconds).frame)
-sleep(1)
-
-# Get the new time from the device:
-new_time_s = device.send(HarpMessage.ReadU32(
-                            CoreRegs.TIMESTAMP_SECOND).frame).payload[0]
-print(f"Updated seconds: {new_time_s}")
-
+with open_device(port=SERIAL_PORT) as device:
+    old_time_s = device.read(core.TimestampSeconds).payload
+    print(f"Old time is: {old_time_s}")
+    device.write(core.TimestampSeconds, 1000)
+    new_time_s = device.read(core.TimestampSeconds).payload
+    print(f"New time is: {new_time_s}")
+    print("Disconnecting.")

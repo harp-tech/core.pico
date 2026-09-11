@@ -1,24 +1,21 @@
-#!/usr/bin/env python3
-from pyharp.device import Device, DeviceMode
-from pyharp.messages import HarpMessage
-from pyharp.messages import MessageType
-from pyharp.messages import CommonRegisters as Regs
-from struct import *
-import os
-from time import sleep, perf_counter
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.12"
+# dependencies = [
+#     "harp",
+# ]
+# ///
+"""Reboot to USB device."""
+
+from harp.device import core
+from harp.serial import open_device
+from harp.device.client import TransportError
 
 
-# Open the device and print the info on screen
-# Open serial connection and save communication to a file
-if os.name == 'posix': # check for Linux.
-    #device = Device("/dev/harp_device_00", "ibl.bin")
-    device = Device("/dev/ttyACM0", "ibl.bin")
-else: # assume Windows.
-    device = Device("COM95", "ibl.bin")
+SERIAL_PORT = "/dev/ttyACM0"  # or "COMx" in Windows, where "x" is the serial port number
 
-
-R_RESET_DEV = 11
-
-
-print("Setting RST_DFU_BIT to Reset device.")
-reply = device.send(HarpMessage.WriteU8(R_RESET_DEV, 0b00100000).frame)
+with open_device(port=SERIAL_PORT) as device:
+    try:
+        device.write(core.ResetDevice, core.ResetFlags.UPDATE_FIRMWARE)
+    except TransportError:
+        print("Device has disconnected and should reset as a mass-storage device.")
