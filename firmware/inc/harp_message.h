@@ -1,5 +1,6 @@
 #ifndef HARP_MESSAGE_H
 #define HARP_MESSAGE_H
+#include <cstdint>
 #include <reg_types.h>
 #include <utility> // for std::to_underlying
 

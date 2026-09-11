@@ -1,4 +1,5 @@
-#include <harp_c_app.h>
+#include "harp_message.h"
+#include "harp_c_app.h"
 
 HarpCApp& HarpCApp::init(uint16_t who_am_i,
                          uint8_t hw_version_major, uint8_t hw_version_minor,
@@ -43,24 +44,22 @@ HarpCApp::~HarpCApp(){self = nullptr;}
 void HarpCApp::handle_buffered_app_message()
 {
     msg_t msg = get_buffered_msg();
-    // Ignore out-of-range msgs.
-    if (msg.header.address < APP_REG_START_ADDRESS ||
-        msg.header.address >= (APP_REG_START_ADDRESS + app_reg_count_))
-        return;
+    // Assume that this function deals with register ranges that start at
+    // APP_REG_START_ADDRESS.
     uint8_t app_reg_address = msg.header.address - APP_REG_START_ADDRESS;
-    switch (msg.header.type)
+    if (msg.header.address >= APP_REG_START_ADDRESS + app_reg_count_)
+        HarpCore::send_harp_reply(msg_type_t(msg.header.type | ERROR_MASK),
+            msg.header.address, nullptr, 0, msg.header.payload_type);
+    else
     {
-        // Note: handler functions take the full address, but they live in
-        // pairs in a separate struct indexed by app register address.
-        case READ:
-            app_reg_specs_[app_reg_address].read_fn_ptr(msg.header.address);
-            break;
-        case WRITE:
-            app_reg_specs_[app_reg_address].write_fn_ptr(msg);
-            break;
-        default:
+        switch (msg.header.type)
         {
-            break;
+            case READ:
+                app_reg_specs_[app_reg_address].read_fn_ptr(msg.header.address);
+                break;
+            case WRITE:
+                app_reg_specs_[app_reg_address].write_fn_ptr(msg);
+                break;
         }
     }
     clear_msg();
