@@ -215,8 +215,13 @@ void HarpCore::update_state(bool force, op_mode_t forced_next_state)
     {
         self->next_heartbeat_time_us_ += self->heartbeat_interval_us_;
         // Handle LED tick
-        //if (self->regs_.r_operation_ctrl_bits.VISUAL_EN)
-        //    set_led(!get_led());
+        if (self->regs_.r_operation_ctrl_bits.OPLED_EN)
+        {
+            if (self->regs_.r_operation_ctrl_bits.VISUAL_EN)
+                self->set_led(!self->get_led());
+            else
+                self->set_led(0);
+        }
         // Handle periodic messaging behavior.
         if ((state == ACTIVE) & !is_muted())
         {
@@ -410,26 +415,25 @@ void HarpCore::write_timestamp_microsecond(msg_t& msg)
 
 void HarpCore::write_operation_ctrl(msg_t& msg)
 {
-    uint8_t& write_byte = *((uint8_t*)msg.payload);
+    OperationCtrlBits& cmd = *((OperationCtrlBits*)msg.payload); // is byte aligned
     // Handle OP Mode state-edge logic here since we can force a state change
     // directly.
     const uint8_t& state = self->regs_.r_operation_ctrl_bits.OP_MODE;
-    const uint8_t& next_state = (*((OperationCtrlBits*)(&write_byte))).OP_MODE;
+    const uint8_t& next_state = cmd.OP_MODE;
     if (state != next_state)
         self->force_state((op_mode_t)next_state);
     // Update register state. Note: DUMP bit always reads as zero.
-    self->regs_.R_OPERATION_CTRL = write_byte & ~(0x01 << DUMP_OFFSET);
-    self->set_visual_indicators(bool((write_byte >> VISUAL_EN_OFFSET) & 0x01));
+    copy_msg_payload_to_register(msg);
+    self->regs_.r_operation_ctrl_bits.DUMP = 0;
+    self->set_visual_indicators(bool(self->regs_.r_operation_ctrl_bits.VISUAL_EN));
     // Bail early if we are muted.
     if (self->is_muted())
         return;
-    // Tease out flags.
-    bool DUMP = bool((write_byte >> DUMP_OFFSET) & 0x01);
     // Send WRITE reply.
     send_harp_reply(WRITE, msg.header.address);
     // DUMP-bit-specific behavior: if set, dispatch one READ reply per register.
     // App registers must also dump their contents.
-    if (DUMP)
+    if (cmd.DUMP)
     {
         for (uint8_t address = 0; address < CORE_REG_COUNT; ++address)
             reg_address_to_spec(address).read_fn_ptr(address);

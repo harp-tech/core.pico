@@ -7,8 +7,8 @@ struct OperationCtrlBits
     unsigned HEARTBEAT_EN : 1;
     unsigned DUMP         : 1;
     unsigned MUTE_RPL     : 1;
-    unsigned VISUALEN     : 1;
-    unsigned OPLEDEN      : 1;
+    unsigned VISUAL_EN     : 1;
+    unsigned OPLED_EN      : 1;
     unsigned ALIVE_EN     : 1;
 };
 

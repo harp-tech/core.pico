@@ -240,13 +240,11 @@ public:
                         spec.payload_type, harp_time_us);
     }
 
-
-
 /**
  * \brief true if the mute flag has been set in the R_OPERATION_CTRL register.
  */
     static inline bool is_muted()
-    {return bool((self->regs_.R_OPERATION_CTRL >> MUTE_RPL_OFFSET) & 0x01);}
+    {return bool(self->regs_.r_operation_ctrl_bits.MUTE_RPL);}
 
 /**
  * \brief true if the device is synchronized via external CLKIN input.
@@ -363,6 +361,14 @@ public:
     static void set_visual_indicators_fn(void (*func)(bool))
     {self->set_visual_indicators_fn_ = func;}
 
+/**
+ * \brief assign functions that control the external OP_LED.
+ */
+    inline void set_op_led_fns(void (*set_led_fn)(bool), bool (*get_led_fn)())
+    {
+        set_led_fn_ = set_led_fn;
+        get_led_fn_ = get_led_fn;
+    }
 
 /**
  * \brief attach a handler function for dealing with writes to the
@@ -436,10 +442,24 @@ protected:
 /**
  * \brief Enable or disable external virtual indicators.
  */
-    void set_visual_indicators(bool enabled)
-    {if (set_visual_indicators_fn_ != nullptr)
-        set_visual_indicators_fn_(enabled);}
+    inline void set_visual_indicators(bool enabled)
+    {
+        if (set_visual_indicators_fn_ != nullptr)
+        set_visual_indicators_fn_(enabled);
+    }
 
+    inline void set_led(bool enabled)
+    {
+        if (set_led_fn_ != nullptr)
+            set_led_fn_(enabled);
+    }
+
+    inline bool get_led()
+    {
+        if (get_led_fn_ != nullptr)
+            return get_led_fn_();
+        return 0;
+    }
 
 /**
  * \brief send one harp reply read message per app register.
@@ -461,6 +481,16 @@ protected:
  * \brief function pointer to function that enables/disables visual indicators.
  */
     void (* set_visual_indicators_fn_)(bool);
+
+/**
+ * \brief function pointer to function that enables/disables OP_LED.
+ */
+    void (* set_led_fn_)(bool);
+
+/**
+ * \brief function pointer to function that reads the state of the OP_LED.
+ */
+    bool (* get_led_fn_)();
 
 /**
  * \brief function pointer. if not null, call this function when writing to

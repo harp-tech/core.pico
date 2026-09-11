@@ -7,14 +7,6 @@
 #include <cstring>  // for strcpy
 #include <array> // for size
 
-
-// R_OPERATION_CTRL bitfields.
-#define DUMP_OFFSET (3)
-#define MUTE_RPL_OFFSET (4)
-#define VISUAL_EN_OFFSET (5)
-#define OPLEDEN_OFFSET (6)
-#define ALIVE_EN_OFFSET (7)
-
 /**
  * \brief enum where the name is the name of the register and the
  *        value is the address according to the harp protocol spec.
