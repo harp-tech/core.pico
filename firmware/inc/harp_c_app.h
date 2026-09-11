@@ -70,7 +70,10 @@ private:
  *  Implements virtual member fn in base class of the same name.
  */
     void reset_app()
-    {reset_fn_();}
+    {
+        HarpCore::reset_app();
+        reset_fn_();
+    }
 
 /**
  * \brief send one harp reply read message per app register.
