@@ -434,10 +434,11 @@ protected:
 
 /**
  * \brief reset the app. Called when the writing to the RESET_DEF register.
- *  Does nothing in the base class, but not pure virtual since we need to be
- *  able to instantiate a standalone harp core.
+ *  Base class implementation restore non-read-only registers.
+ *  Child class implementation calls the user-specified reset function.
  */
-    virtual void reset_app(){};
+    virtual void reset_app();
+
 
 /**
  * \brief Enable or disable external virtual indicators.

@@ -118,14 +118,24 @@ struct CoreRegValues
                .hardware = hardware,
                .interface_hash = {0}}
     {
-        strcpy((char*)R_DEVICE_NAME, name);
-        strcpy((char*)default_name, name);
         memcpy(R_TAG, tag, sizeof(R_TAG));
         memcpy(R_VERSION.core_id, core_id, sizeof(harp_version_reg_t::core_id));
         memcpy(R_VERSION.interface_hash, interface_hash,
             sizeof(harp_version_reg_t::interface_hash));
+        strcpy((char*)default_name, name);
+        reset();
+    }
+
+    void reset()
+    {
+        memcpy((char*)R_DEVICE_NAME, (char*)default_name, sizeof(R_DEVICE_NAME));
         // Flag that we only boot from non-volatile memory
         r_reset_dev_bits.BOOT_DEF = 1;
+        // Setup R_OPERATION_CTRL defaults
+        r_operation_ctrl_bits.ALIVE_EN = 1;
+        r_operation_ctrl_bits.OPLED_EN = 1;
+        r_operation_ctrl_bits.VISUAL_EN = 1;
+        r_operation_ctrl_bits.HEARTBEAT_EN = 1;
     }
 
     // Syntactic Sugar. Make bitfields for certain registers easier to access.

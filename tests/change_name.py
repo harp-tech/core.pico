@@ -22,10 +22,7 @@ def print_any_reply(msg: HarpMessage) -> None:
 
 
 with open_device(port=SERIAL_PORT) as device:
-    #print(dir(core.ResetDevicePayload))
-    #import sys
-    #sys.exit(0)
-    new_name = "fred"
+    new_name = "jimothy"
     reply = device.read(core.DeviceName)
     print(f"Device name is: {reply.payload}")
     print(f"Changing name to: {new_name}")
