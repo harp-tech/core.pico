@@ -18,7 +18,7 @@
 #include <pico/bootrom.h>
 
 // Project version
-inline constexpr semver_t PICO_CORE_VERSION = {1, 1, 0};
+inline constexpr semver_t PICO_CORE_VERSION = {1, 1, 1};
 
 // Version of the Harp Protocol that this library most closely implements.
 inline constexpr semver_t HARP_PROTOCOL = {2, 0, 0};
