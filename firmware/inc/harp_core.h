@@ -618,7 +618,25 @@ private:
 /**
  * \brief Write the a specified Harp time to the timestamp registers.
  */
-    static void set_timestamp_regs(uint64_t harp_time_us);
+    inline static void set_timestamp_regs(uint64_t harp_time_us)
+    {
+        // Pico implementation:
+        // Harp Time is computed as an offset relative to the Pico's main
+        // timer register, which ticks every 1[us].
+        // Note: R_TIMESTAMP_MICRO can only represent values up to 31249.
+        // Note: Update microseconds first.
+    #if defined(PICO_RP2040) // use 2040-specific integer hardware divider.
+        uint64_t leftover_microseconds;
+        uint64_t curr_seconds = divmod_u64u64_rem(harp_time_us, 1'000'000UL,
+                                                  &leftover_microseconds);
+        self->regs_.R_TIMESTAMP_SECOND = uint32_t(curr_seconds); // will not overflow.
+        self->regs_.R_TIMESTAMP_MICRO = uint16_t(leftover_microseconds >> 5);
+    #else
+        uint64_t& curr_microseconds = harp_time_us;
+        self->regs_.R_TIMESTAMP_SECOND = curr_microseconds / 1'000'000ULL;
+        self->regs_.R_TIMESTAMP_MICRO = uint16_t((curr_microseconds % 1'000'000UL)>>5);
+    #endif
+    }
 
     // core register read handler functions. Handles read operations on those
     // registers. One-per-harp-register where necessary, but read_reg_generic()

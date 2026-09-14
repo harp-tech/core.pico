@@ -354,25 +354,6 @@ void HarpCore::read_reg_error(uint8_t address)
     send_harp_reply(READ_ERROR, address, nullptr, 0, spec.payload_type);
 }
 
-inline void HarpCore::set_timestamp_regs(uint64_t harp_time_us)
-{
-    // Pico implementation:
-    // Harp Time is computed as an offset relative to the Pico's main
-    // timer register, which ticks every 1[us].
-    // Note: R_TIMESTAMP_MICRO can only represent values up to 31249.
-    // Note: Update microseconds first.
-#if defined(PICO_RP2040) // use 2040-specific integer hardware divider.
-    uint64_t leftover_microseconds;
-    uint64_t curr_seconds = divmod_u64u64_rem(harp_time_us, 1'000'000UL,
-                                              &leftover_microseconds);
-    self->regs_.R_TIMESTAMP_SECOND = uint32_t(curr_seconds); // will not overflow.
-    self->regs_.R_TIMESTAMP_MICRO = uint16_t(leftover_microseconds >> 5);
-#else
-    uint64_t& curr_microseconds = harp_time_us;
-    self->regs_.R_TIMESTAMP_SECOND = curr_microseconds / 1'000'000ULL;
-    self->regs_.R_TIMESTAMP_MICRO = uint16_t((curr_microseconds % 1'000'000UL)>>5);
-#endif
-}
 
 void HarpCore::write_timestamp_second(msg_t& msg)
 {
