@@ -36,6 +36,11 @@ HarpCore::HarpCore(uint16_t who_am_i, semver_t firmware, semver_t hardware,
 
 HarpCore::~HarpCore(){self = nullptr;}
 
+void HarpCore::reset_app()
+{
+    regs_.reset();
+}
+
 void HarpCore::run()
 {
     tud_task();
