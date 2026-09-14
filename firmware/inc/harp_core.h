@@ -18,7 +18,7 @@
 #include <pico/bootrom.h>
 
 // Project version
-inline constexpr semver_t PICO_CORE_VERSION = {1, 1, 0};
+inline constexpr semver_t PICO_CORE_VERSION = {1, 1, 1};
 
 // Version of the Harp Protocol that this library most closely implements.
 inline constexpr semver_t HARP_PROTOCOL = {2, 0, 0};
@@ -372,12 +372,22 @@ public:
 
 /**
  * \brief attach a handler function for dealing with writes to the
- * r_clock_config register.
+ * r_clock_config register (excluding the `CLK_GEN` bit).
  * \warning like all other write handler functions, this function must send
  * a harp reply at the end of the function only if the device is not muted.
+ * \note  set bits from original register state (`CLK_GEN`) should be reapplied
+ * before sending back harp reply.
  */
     static void set_r_clock_config_write_handler(void (*func)(msg_t&))
     {self->handle_r_clock_config_write_fn_ = func;}
+
+/**
+ * \brief identify (via underlying register) whether this device is a clock
+ * generator (false by default).
+ */
+    static inline void set_is_clock_generator(bool is_clock_gen)
+    {self->regs_.r_clock_config_bits.CLK_GEN = is_clock_gen;}
+
 
 /**
  * \brief force the op mode state. Useful to put the core in an error state.
@@ -656,13 +666,6 @@ private:
  * register.
  */
     static void read_heartbeat(uint8_t reg_name);
-
-/**
- * \brief identify (via underlying register) whether this device is a clock
- * generator (false by default).
- */
-    static inline void set_is_clock_generator(bool is_clock_gen)
-    {self->regs_.r_clock_config_bits.CLK_GEN = is_clock_gen;}
 
     // write handler function per core register. Handles write
     // operations to that register.
